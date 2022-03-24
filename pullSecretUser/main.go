@@ -22,6 +22,7 @@ func main() {
 	kubeConfigFile := flag.String("kube-config", "", "Full path to kubeconfig")
 	firstDataType := flag.String("first-data-type", "dockerconfigjson", "The heading of the in the 'data' section of the secret you wish to inspect")
 	secondDataType := flag.String("second-data-type", "", "The heading of the in the 'data' section of the secret you wish to inspect")
+	ignoreOpenShiftProjects := flag.Bool("ignore-openshift", true, "Ignores the Openshift-* projects to speed things up")
 	flag.Parse()
 
 	// If no kubeconfig is passed in, attempt to find it in a default location
@@ -41,6 +42,9 @@ func main() {
 
 	for _, projectInfo := range namespaces.Items {
 		// get all the secrets in the current namespace
+		if *ignoreOpenShiftProjects == true && strings.Contains(projectInfo.Name, "openshift") {
+			continue
+		}
 		all_secrets, _ := client.CoreV1().Secrets(projectInfo.Name).List(context.TODO(), metav1.ListOptions{})
 		for _, secretsInfo := range all_secrets.Items {
 			individual_secret, _ := client.CoreV1().Secrets(projectInfo.Name).Get(context.TODO(), secretsInfo.Name, metav1.GetOptions{})
