@@ -69,7 +69,9 @@ func main() {
 					if !ok {
 						if *debug != false {
 							fmt.Printf("%s   WARNING!!  %s   has unexpected format", debugHeader, secretsInfo.Name)
+							continue
 						}
+						continue
 					}
 
 					for _, val := range auths {
@@ -77,7 +79,9 @@ func main() {
 						if !ok {
 							if *debug != false {
 								fmt.Printf("%s   WARNING!!  %s   has unexpected format", debugHeader, secretsInfo.Name)
+								continue
 							}
+							continue
 						}
 						var foundUsername string
 						var password string
