@@ -12,32 +12,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-type Block struct {
-	Try     func()
-	Catch   func(Exception)
-	Finally func()
-}
-
-type Exception interface{}
-
-func Throw(up Exception) {
-	panic(up)
-}
-
-func (tcf Block) Do() {
-	if tcf.Finally != nil {
-		defer tcf.Finally()
-	}
-	if tcf.Catch != nil {
-		defer func() {
-			if r := recover(); r != nil {
-				tcf.Catch(r)
-			}
-		}()
-	}
-	tcf.Try()
-}
-
 // This program will crawl the projects in a cluster and retrieve any secrets
 // which have the a specified username inside them (generally a pull secret)
 // this can be very slow as it introspects all of the secrets in the cluster
@@ -68,7 +42,6 @@ func main() {
 	client, _ := kubernetes.NewForConfig(config)
 	// get all the namespaces so that we can loop over the secrets in that project
 	namespaces, _ := client.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
-	auths := make(map[string]interface{})
 
 	for _, projectInfo := range namespaces.Items {
 		// get all the secrets in the current namespace
@@ -91,33 +64,21 @@ func main() {
 					json.Unmarshal([]byte(secretValue), &result)
 					// json structure {"auths":{"<repo>":{"username":"faker","password":"snoogy","email":"admin@me.com","auth":"ZmF2d5"}}}
 					// Some maps may be empty, we want to ignore them as they wont have the keys we are looking for
-					Block{
-						Try: func() {
-							auths = result["auths"].(map[string]interface{})
-						},
-						Catch: func(e Exception) {
+					auths, ok := result["auths"].(map[string]interface{})
+
+					if !ok {
+						if *debug != false {
+							fmt.Printf("%s   WARNING!!  %s   has unexpected format", debugHeader, secretsInfo.Name)
+						}
+					}
+
+					for _, val := range auths {
+						unknownRepo, ok := val.(map[string]interface{})
+						if !ok {
 							if *debug != false {
 								fmt.Printf("%s   WARNING!!  %s   has unexpected format", debugHeader, secretsInfo.Name)
 							}
-						},
-						Finally: func() {
-						},
-					}.Do()
-					for _, val := range auths {
-						unknownRepo := make(map[string]interface{})
-						Block{
-							Try: func() {
-								unknownRepo = val.(map[string]interface{})
-							},
-							Catch: func(e Exception) {
-								if *debug != false {
-									fmt.Printf("%s   WARNING!!  %s   has unexpected format", debugHeader, secretsInfo.Name)
-								}
-							},
-							Finally: func() {
-							},
-						}.Do()
-						//unknownRepo := val.(map[string]interface{})
+						}
 						var foundUsername string
 						var password string
 						for authHeadings, authValues := range unknownRepo {
