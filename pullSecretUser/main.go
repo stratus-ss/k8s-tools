@@ -133,7 +133,7 @@ func main() {
 
 						}
 						if len(foundUsername) != 0 {
-							fmt.Printf("Secret Name: %s \n   Project Name: %s \n   Username: %s \n   Password %s\n\n", secretsInfo.Name, projectInfo.Name, foundUsername, password)
+							fmt.Printf("\n\nSecret Name: %s \n   Project Name: %s \n   Username: %s \n   Password %s\n", secretsInfo.Name, projectInfo.Name, foundUsername, password)
 						}
 
 					}
