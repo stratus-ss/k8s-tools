@@ -72,39 +72,40 @@ func main() {
 							continue
 						}
 						continue
-					}
+					} else {
 
-					for _, val := range auths {
-						unknownRepo, ok := val.(map[string]interface{})
-						if !ok {
-							if *debug != false {
-								fmt.Printf("%s   WARNING!!  %s   has unexpected format", debugHeader, secretsInfo.Name)
+						for _, val := range auths {
+							unknownRepo, ok := val.(map[string]interface{})
+							if !ok {
+								if *debug != false {
+									fmt.Printf("%s   WARNING!!  %s   has unexpected format", debugHeader, secretsInfo.Name)
+									continue
+								}
 								continue
-							}
-							continue
-						}
-						var foundUsername string
-						var password string
-						for authHeadings, authValues := range unknownRepo {
-							if strings.Contains(authHeadings, "username") {
-								unknownUser := fmt.Sprintf("%v", authValues)
-								if strings.ToLower(unknownUser) == strings.ToLower(*serviceAccountName) {
-									foundUsername = unknownUser
+							} else {
+								var foundUsername string
+								var password string
+								for authHeadings, authValues := range unknownRepo {
+									if strings.Contains(authHeadings, "username") {
+										unknownUser := fmt.Sprintf("%v", authValues)
+										if strings.ToLower(unknownUser) == strings.ToLower(*serviceAccountName) {
+											foundUsername = unknownUser
+										}
+									}
+									if strings.Contains(authHeadings, "password") {
+										password = fmt.Sprintf("%v", authValues)
+									}
+
+								}
+								if len(foundUsername) != 0 {
+									fmt.Printf("\n\nSecret Name: %s \n   Project Name: %s \n   Username: %s \n   Password %s\n", secretsInfo.Name, projectInfo.Name, foundUsername, password)
 								}
 							}
-							if strings.Contains(authHeadings, "password") {
-								password = fmt.Sprintf("%v", authValues)
-							}
-
 						}
-						if len(foundUsername) != 0 {
-							fmt.Printf("\n\nSecret Name: %s \n   Project Name: %s \n   Username: %s \n   Password %s\n", secretsInfo.Name, projectInfo.Name, foundUsername, password)
-						}
-
 					}
 				}
-			}
 
+			}
 		}
 	}
 }
