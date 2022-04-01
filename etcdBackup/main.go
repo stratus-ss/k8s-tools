@@ -21,48 +21,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-type VolumeParams struct {
-	volumeType    string
-	volumeSize    string
-	volumeName    string
-	volumeMode    []corev1.PersistentVolumeAccessMode
-	pvcName       string
-	pvcNamespace  string
-	accessMode    []corev1.PersistentVolumeAccessMode
-	path          string
-	serverAddress string
-	reclaimPolicy string
-}
-
-func (obj *VolumeParams) PersistentVolume() {
-	if obj.volumeType == "" {
-		obj.volumeType = "nfs"
-	}
-	if obj.volumeSize == "" {
-		obj.volumeSize = "1G"
-	}
-	if obj.volumeName == "" {
-		obj.volumeName = "etcd-backup"
-	}
-	if obj.volumeMode == nil {
-		obj.volumeMode = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany}
-	}
-	if obj.pvcName == "" {
-		obj.pvcName = "etcd-backup-pvc"
-	}
-	if obj.pvcNamespace == "" {
-		obj.pvcNamespace = "ocp-etcd-backup"
-	}
-	if obj.accessMode == nil {
-		obj.accessMode = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany}
-	}
-
-	if obj.reclaimPolicy == "" {
-		obj.path = "etcd-backup-pvc"
-	}
-
-}
-
 func randomString(length int) string {
 	// Generate a random uuid to attach to the pod name
 	// so that this can be called multiple times without conflicting with previous runs
@@ -72,7 +30,30 @@ func randomString(length int) string {
 	return fmt.Sprintf("%x", b)[:length]
 }
 
-func createClusterRole(namespaceName string, client *kubernetes.Clientset) {
+func createClusterBackupRole(namespaceName string, client *kubernetes.Clientset) {
+	// Create the privileged role
+	roleName := "cluster-etcd-backup"
+	nodeVerbs := []string{"get", "list"}
+	apiGroup := []string{""}
+	nodeResources := []string{"nodes"}
+	podVerbs := []string{"get", "list", "create", "delete", "watch"}
+	podResources := []string{"pods", "pods/log"}
+	rules := []rbac.PolicyRule{rbac.PolicyRule{Verbs: nodeVerbs, APIGroups: apiGroup, Resources: nodeResources}, rbac.PolicyRule{Verbs: podVerbs, APIGroups: apiGroup, Resources: podResources}}
+	clusterRole := &rbac.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: roleName,
+		},
+		Rules: rules,
+	}
+
+	_, err := client.RbacV1().ClusterRoles().Update(context.TODO(), clusterRole, metav1.UpdateOptions{})
+
+	if err != nil {
+		panic(err)
+	}
+
+}
+func createClusterPriviligedRole(namespaceName string, client *kubernetes.Clientset) {
 	// Create the privileged role
 	roleName := "system:openshift:scc:privileged"
 	verbs := []string{"use"}
@@ -97,10 +78,10 @@ func createClusterRole(namespaceName string, client *kubernetes.Clientset) {
 	}
 }
 
-func createClusterRoleBinding(namespaceName string, client *kubernetes.Clientset) {
+func createClusterPriviligedRoleBinding(namespaceName string, serviceAccountName string, client *kubernetes.Clientset) {
 	// Create the privileged role
-	roleName := "system:openshift:scc:privileged"
-	subjects := []rbac.Subject{rbac.Subject{Kind: "ServiceAccount", Name: "default", Namespace: namespaceName}}
+	roleName := "etcd-backup-privileged"
+	subjects := []rbac.Subject{rbac.Subject{Kind: "ServiceAccount", Name: serviceAccountName, Namespace: namespaceName}}
 	roleRefs := rbac.RoleRef{APIGroup: "rbac.authorization.k8s.io", Kind: "ClusterRole", Name: "system:openshift:scc:privileged"}
 	clusterRoleBinding := &rbac.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
@@ -110,9 +91,43 @@ func createClusterRoleBinding(namespaceName string, client *kubernetes.Clientset
 		RoleRef:  roleRefs,
 	}
 
-	_, exist_err := client.RbacV1().ClusterRoleBindings().Get(context.TODO(), roleName, metav1.GetOptions{})
+	_, err := client.RbacV1().ClusterRoleBindings().Update(context.TODO(), clusterRoleBinding, metav1.UpdateOptions{})
+	if err != nil {
+		panic(err)
+
+	}
+}
+
+func createClusterBackupRoleBinding(namespaceName string, serviceAccountName string, client *kubernetes.Clientset) {
+	// Create the privileged role
+	subjects := []rbac.Subject{rbac.Subject{Kind: "ServiceAccount", Name: serviceAccountName, Namespace: namespaceName}}
+	roleRefs := rbac.RoleRef{APIGroup: "rbac.authorization.k8s.io", Kind: "ClusterRole", Name: "cluster-etcd-backup"}
+	clusterRoleBinding := &rbac.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceAccountName,
+		},
+		Subjects: subjects,
+		RoleRef:  roleRefs,
+	}
+
+	_, err := client.RbacV1().ClusterRoleBindings().Update(context.TODO(), clusterRoleBinding, metav1.UpdateOptions{})
+
+	if err != nil {
+		panic(err)
+	}
+
+}
+
+func createServiceAccount(namespaceName string, serviceAccountName string, client *kubernetes.Clientset) {
+	serviceAccount := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      serviceAccountName,
+			Namespace: namespaceName,
+		},
+	}
+	_, exist_err := client.CoreV1().ServiceAccounts(namespaceName).Get(context.TODO(), serviceAccountName, metav1.GetOptions{})
 	if exist_err != nil {
-		_, err := client.RbacV1().ClusterRoleBindings().Create(context.TODO(), clusterRoleBinding, metav1.CreateOptions{})
+		_, err := client.CoreV1().ServiceAccounts(namespaceName).Create(context.TODO(), serviceAccount, metav1.CreateOptions{})
 
 		if err != nil {
 			panic(err)
@@ -120,7 +135,7 @@ func createClusterRoleBinding(namespaceName string, client *kubernetes.Clientset
 	}
 }
 
-func createProject(namespaceName string, client *kubernetes.Clientset) {
+func createProject(namespaceName string, serviceAccountName string, client *kubernetes.Clientset) {
 	//Check to see if project exists
 	// If project doesn't exist, create it
 	// returns an error if it fails
@@ -141,11 +156,19 @@ func createProject(namespaceName string, client *kubernetes.Clientset) {
 			panic(err)
 		}
 	}
-	createClusterRole(namespaceName, client)
-	createClusterRoleBinding(namespaceName, client)
+	fmt.Println("Creating service account...")
+	createServiceAccount(namespaceName, serviceAccountName, client)
+	fmt.Println("Ensuring that ClusterRole exists...")
+	createClusterPriviligedRole(namespaceName, client)
+	createClusterBackupRole(namespaceName, client)
+
+	fmt.Println("Checking to make sure ClusterRole is applied to 'default' service account...")
+	createClusterPriviligedRoleBinding(namespaceName, serviceAccountName, client)
+	createClusterBackupRoleBinding(namespaceName, serviceAccountName, client)
+
 }
 
-func createBackupPodNoPVC(nodeName string, projectName string, imageURL string, jobName string) *batchv1.Job {
+func createBackupPodNoPVC(nodeName string, projectName string, imageURL string, jobName string, serviceAccountName string) *batchv1.Job {
 	// Creates a debug pod from the nodeName passed in
 	// Pod is based on the ose-cli pod and runs an etcd backup
 	// in the future may take namespace and other arguments to make this more flexible
@@ -179,7 +202,8 @@ func createBackupPodNoPVC(nodeName string, projectName string, imageURL string, 
 							},
 						},
 					},
-					RestartPolicy: corev1.RestartPolicyNever,
+					RestartPolicy:      corev1.RestartPolicyNever,
+					ServiceAccountName: serviceAccountName,
 					NodeSelector: map[string]string{
 						"node-role.kubernetes.io/master": "",
 					},
@@ -191,7 +215,7 @@ func createBackupPodNoPVC(nodeName string, projectName string, imageURL string, 
 	return (jobSpec)
 }
 
-func createBackupPodWithPVC(nodeName string, projectName string, imageURL string, pvcName string, jobName string) *batchv1.Job {
+func createBackupPodWithPVC(nodeName string, projectName string, imageURL string, pvcName string, jobName string, serviceAccountName string) *batchv1.Job {
 	// Creates a debug pod from the nodeName passed in
 	// Pod is based on the ose-cli pod and runs an etcd backup
 	// in the future may take namespace and other arguments to make this more flexible
@@ -237,7 +261,8 @@ func createBackupPodWithPVC(nodeName string, projectName string, imageURL string
 							},
 						},
 					},
-					RestartPolicy: corev1.RestartPolicyNever,
+					RestartPolicy:      corev1.RestartPolicyNever,
+					ServiceAccountName: serviceAccountName,
 					Volumes: []corev1.Volume{
 						{
 							Name: "etcd-backup-mount",
@@ -260,7 +285,7 @@ func createBackupPodWithPVC(nodeName string, projectName string, imageURL string
 	return (jobSpec)
 }
 
-func createPersistentVolume(client *kubernetes.Clientset) {
+func createPersistentVolume(namespaceName string, client *kubernetes.Clientset) {
 	//
 	accessMode := []corev1.PersistentVolumeAccessMode{"ReadWriteMany"}
 	volumeName := "etcd-backup"
@@ -269,7 +294,7 @@ func createPersistentVolume(client *kubernetes.Clientset) {
 	serverAddress := "192.168.99.95"
 	//accessMode = "ReadWriteMany"
 	claimName := "etcd-backup-pvc"
-	namespace := "ocp-etcd-backup"
+	namespace := namespaceName
 	volumeSpec := &corev1.PersistentVolume{
 
 		TypeMeta: metav1.TypeMeta{Kind: "PersistentVolume"},
@@ -295,14 +320,11 @@ func createPersistentVolume(client *kubernetes.Clientset) {
 			},
 		},
 	}
-	_, exist_err := client.CoreV1().PersistentVolumes().Get(context.TODO(), volumeName, metav1.GetOptions{})
 
-	if exist_err != nil {
-		_, err := client.CoreV1().PersistentVolumes().Create(context.TODO(), volumeSpec, metav1.CreateOptions{})
+	_, err := client.CoreV1().PersistentVolumes().Update(context.TODO(), volumeSpec, metav1.UpdateOptions{})
 
-		if err != nil {
-			panic(err)
-		}
+	if err != nil {
+		panic(err)
 	}
 }
 
@@ -345,7 +367,7 @@ func createMissingPVCs(namespaceName string, pvcName string, volumeName, volumeS
 
 }
 
-func pullBackupLocal(nodeName string, localBackupDirectory string, namespaceName string, jobName string, client *kubernetes.Clientset) {
+func pullBackupLocal(nodeName string, localBackupDirectory string, namespaceName string, jobName string, debug bool, debug_header string, client *kubernetes.Clientset) {
 	// There may be times where you cannot attach or do not want to attach a PVC
 	// in this case you want to pull the backup locally
 	i := 0
@@ -385,6 +407,10 @@ func pullBackupLocal(nodeName string, localBackupDirectory string, namespaceName
 		// this is a hack to get around the error "arguments in resource/name form may not have more than one slash"
 		// seems to be some weird escaping happening in the exec command
 		// perhaps a better way would be to try and create a debug node pod
+		fmt.Println("Attempint to copy tarball locally...")
+		if debug != false {
+			fmt.Printf("%s running the following command \n\t\t\t  %s", debug_header, catCMD)
+		}
 		output, err := exec.Command("sh", "-c", catCMD).Output()
 		if err != nil {
 			log.Fatal(err)
@@ -406,7 +432,9 @@ func pullBackupLocal(nodeName string, localBackupDirectory string, namespaceName
 
 		fmt.Println("Starting cleanup")
 		cleanupCMD := cmd + " -- rm -fv " + tempTarball
-		fmt.Println(cleanupCMD)
+		if debug != false {
+			fmt.Printf("%s using the following cleanup command:\n\t\t\t  %s\n", debug_header, cleanupCMD)
+		}
 		out2, _ := exec.Command("sh", "-c", cleanupCMD).CombinedOutput()
 
 		fmt.Println(string(out2))
@@ -428,9 +456,10 @@ func main() {
 	pvcName := "etcd-backup-pvc"
 	pvcSize := "1Gi"
 	pvName := "etcd-backup"
+	serviceAccountName := "openshift-backup"
 	randomUUID := randomString(4)
 	jobName := "etcd-backup-" + randomUUID
-
+	debug_header := "    (DEBUG)    --->    "
 	if *debug != false {
 		// This is an empty place holder until I decide how i want to implement the debug flag
 	}
@@ -441,6 +470,10 @@ func main() {
 		*kubeConfigFile = "${USER}/.kube/auth/kubeconfig"
 		fmt.Println("No kubeconfig attempting to use ~/.kube/auth/kubeconfig")
 	}
+	fmt.Println("Connecting to cluster")
+	if *debug != false {
+		fmt.Printf("%s Connecting using kubeconfig: %s\n", debug_header, *kubeConfigFile)
+	}
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeConfigFile)
 
 	if err != nil {
@@ -448,6 +481,7 @@ func main() {
 	}
 
 	client, _ := kubernetes.NewForConfig(config)
+	fmt.Println("Attempting to find nodes with the label: node-role.kubernetes.io/master=")
 	nodes, err := client.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{LabelSelector: "node-role.kubernetes.io/master="})
 
 	if err != nil {
@@ -458,27 +492,37 @@ func main() {
 	// It should be safe to assume that at least 1 item exists since the above error should have exited the program
 	// if no results were found
 	debug_node := nodes.Items[0].Name
-
+	if *debug != false {
+		fmt.Printf("%s using node: %s\n", debug_header, debug_node)
+	}
 	// Make sure the backup area exists
-	createProject(backupProject, client)
+	if *debug != false {
+		fmt.Printf("%s attempting to use project: %s\n", debug_header, backupProject)
+		fmt.Println("Project will be created if it doesn't exist")
+	}
+	createProject(backupProject, serviceAccountName, client)
 
 	// make sure the PV exists
 	//createPersistentVolume(volumeInfo, client)
-	backupJob := createBackupPodNoPVC(debug_node, backupProject, imageURL, jobName)
+	backupJob := createBackupPodNoPVC(debug_node, backupProject, imageURL, jobName, serviceAccountName)
 	if *usePVC != false {
 		// make sure the pv exists
 		fmt.Println("Creating the Volume")
-		createPersistentVolume(client)
+		createPersistentVolume(backupProject, client)
 		// make sure the pvc exists
 		fmt.Println("Creating the PVC")
 		createMissingPVCs(backupProject, pvcName, pvName, pvcSize, client)
-		backupJob = createBackupPodWithPVC(debug_node, backupProject, imageURL, pvcName, jobName)
+		fmt.Println("Creating the backup job")
+		if *debug != false {
+			fmt.Printf("%s Job: %s\n 			Project: %s \n 			Node: %s\n			PVC: %s\n", debug_header, jobName, backupProject, debug_node, pvcName)
+		}
+		backupJob = createBackupPodWithPVC(debug_node, backupProject, imageURL, pvcName, jobName, serviceAccountName)
 	}
 
 	_, err1 := client.BatchV1().Jobs(backupProject).Create(context.TODO(), backupJob, metav1.CreateOptions{})
 	if *usePVC == false {
 		fmt.Println("Starting to pull backup locally")
-		pullBackupLocal(debug_node, *localBackupDirectory, backupProject, jobName, client)
+		pullBackupLocal(debug_node, *localBackupDirectory, backupProject, jobName, *debug, debug_header, client)
 	}
 
 	if err1 != nil {
