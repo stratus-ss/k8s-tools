@@ -285,14 +285,12 @@ func createBackupPodWithPVC(nodeName string, projectName string, imageURL string
 	return (jobSpec)
 }
 
-func createPersistentVolume(namespaceName string, client *kubernetes.Clientset) {
-	//
+func createPersistentVolume(namespaceName string, nfsServer string, nfsPath string, client *kubernetes.Clientset) {
+	// This assumes the creation of an NFS volume
+	// It will create the PV with a ClaimRef so that no other PVCs will bind to it
 	accessMode := []corev1.PersistentVolumeAccessMode{"ReadWriteMany"}
 	volumeName := "etcd-backup"
 	volumeSize := "10Gi"
-	path := "/storage/vms/origin_nfs/etcd_backups"
-	serverAddress := "192.168.99.95"
-	//accessMode = "ReadWriteMany"
 	claimName := "etcd-backup-pvc"
 	namespace := namespaceName
 	volumeSpec := &corev1.PersistentVolume{
@@ -310,8 +308,8 @@ func createPersistentVolume(namespaceName string, client *kubernetes.Clientset) 
 			},
 			PersistentVolumeSource: v1.PersistentVolumeSource{
 				NFS: &corev1.NFSVolumeSource{
-					Path:   path,
-					Server: serverAddress,
+					Path:   nfsPath,
+					Server: nfsServer,
 				},
 			},
 			ClaimRef: &corev1.ObjectReference{
@@ -452,6 +450,8 @@ func main() {
 	usePVC := flag.Bool("use-pvc", true, "Does the backup pod use a PVC? If not, dump it backup to local directory")
 	localBackupDirectory := flag.String("local-backup-dir", "/tmp", "Full LOCAL path to put backup")
 	etcdBackupProject := flag.String("etcd-backup-project", "ocp-etcd-backup", "Which project to create etcd backup pods")
+	nfsServer := flag.String("nfs-server", "", "IP or Hostname of the NFS Server")
+	nfsPath := flag.String("nfs-path", "", "NFS Path to save backups to")
 	debug := flag.Bool("debug", false, "Turns on some debug messages")
 	flag.Parse()
 	imageURL := "registry.redhat.io/openshift4/ose-cli:" + *backupPodImage
@@ -465,6 +465,22 @@ func main() {
 	debug_header := "    (DEBUG)    --->    "
 	if *debug != false {
 		// This is an empty place holder until I decide how i want to implement the debug flag
+	}
+
+	if *usePVC == true {
+		if *nfsServer == "" {
+			flag.Usage()
+			fmt.Println("")
+			fmt.Println("!!! NFS Server is required if using a PVC !!!")
+			os.Exit(1)
+		}
+		if *nfsPath == "" {
+			flag.Usage()
+			fmt.Println("")
+			fmt.Println("!!! NFS Path is required if using a PVC !!!")
+			os.Exit(1)
+
+		}
 	}
 
 	// This is a temporary holder until I find a better way to pass in this config
@@ -511,7 +527,7 @@ func main() {
 	if *usePVC != false {
 		// make sure the pv exists
 		fmt.Println("Creating the Volume")
-		createPersistentVolume(backupProject, client)
+		createPersistentVolume(backupProject, *nfsServer, *nfsPath, client)
 		// make sure the pvc exists
 		fmt.Println("Creating the PVC")
 		createMissingPVCs(backupProject, pvcName, pvName, pvcSize, client)
