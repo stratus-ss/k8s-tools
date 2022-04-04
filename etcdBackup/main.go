@@ -367,7 +367,7 @@ func createMissingPVCs(namespaceName string, pvcName string, volumeName, volumeS
 
 }
 
-func pullBackupLocal(nodeName string, localBackupDirectory string, namespaceName string, jobName string, debug bool, debug_header string, client *kubernetes.Clientset) {
+func pullBackupLocal(nodeName string, localBackupDirectory string, namespaceName string, jobName string, debug bool, debug_header string, kubeconfig string, client *kubernetes.Clientset) {
 	// There may be times where you cannot attach or do not want to attach a PVC
 	// in this case you want to pull the backup locally
 	i := 0
@@ -400,7 +400,7 @@ func pullBackupLocal(nodeName string, localBackupDirectory string, namespaceName
 		// tarball should be in our temporary location on the control plane host
 		tempTarball := "/host/tmp/etcd_backup.tar.gz"
 		//tempBackupDir := "/host/tmp/assests"
-		cmd := "oc debug node/" + nodeName
+		cmd := fmt.Sprintf("KUBECONFIG=%s oc debug node/%s", kubeconfig, nodeName)
 		catCMD := cmd + " -- cat " + tempTarball
 		todayDate := fmt.Sprintf("%d-%d-%d_%d_%d_%d", time.Now().Year(), time.Now().Month(), time.Now().Day(), time.Now().Hour(), time.Now().Minute(), time.Now().Second())
 		localTarballLocation := localBackupDirectory + "/etcd_backup_" + todayDate + ".db.tgz"
@@ -409,16 +409,18 @@ func pullBackupLocal(nodeName string, localBackupDirectory string, namespaceName
 		// perhaps a better way would be to try and create a debug node pod
 		fmt.Println("Attempint to copy tarball locally...")
 		if debug != false {
-			fmt.Printf("%s running the following command \n\t\t\t  %s", debug_header, catCMD)
+			fmt.Printf("%s running the following command \n\t\t\t%s\n", debug_header, catCMD)
 		}
 		output, err := exec.Command("sh", "-c", catCMD).Output()
 		if err != nil {
+			fmt.Println("Failed to read remote file")
 			log.Fatal(err)
 		}
 		// The output is captured as a byte[] so we want to write this out to a file
 		f, err2 := os.Create(localTarballLocation)
 
 		if err2 != nil {
+			fmt.Println("Failed to create local file")
 			log.Fatal(err2)
 		}
 
@@ -427,6 +429,7 @@ func pullBackupLocal(nodeName string, localBackupDirectory string, namespaceName
 		_, err3 := f.Write(output)
 
 		if err3 != nil {
+			fmt.Println("Failed to save local file")
 			log.Fatal(err3)
 		}
 
@@ -522,7 +525,7 @@ func main() {
 	_, err1 := client.BatchV1().Jobs(backupProject).Create(context.TODO(), backupJob, metav1.CreateOptions{})
 	if *usePVC == false {
 		fmt.Println("Starting to pull backup locally")
-		pullBackupLocal(debug_node, *localBackupDirectory, backupProject, jobName, *debug, debug_header, client)
+		pullBackupLocal(debug_node, *localBackupDirectory, backupProject, jobName, *debug, debug_header, *kubeConfigFile, client)
 	}
 
 	if err1 != nil {
