@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -135,7 +136,7 @@ func createServiceAccount(namespaceName string, serviceAccountName string, clien
 	}
 }
 
-func createProject(namespaceName string, serviceAccountName string, client *kubernetes.Clientset) {
+func createProject(namespaceName string, serviceAccountName string, debug bool, debug_header string, client *kubernetes.Clientset) {
 	//Check to see if project exists
 	// If project doesn't exist, create it
 	// returns an error if it fails
@@ -148,12 +149,16 @@ func createProject(namespaceName string, serviceAccountName string, client *kube
 		},
 	}
 	_, exist_err := client.CoreV1().Namespaces().Get(context.TODO(), namespaceName, metav1.GetOptions{})
-
+	if debug {
+		fmt.Printf("%s project: %s did not exist\n", debug_header, namespaceName)
+		fmt.Printf("%s creating the project %s\n", debug_header, namespaceName)
+	}
 	if exist_err != nil {
-		_, err := client.CoreV1().Namespaces().Create(context.TODO(), namespace, metav1.CreateOptions{})
+		_, createNamespaceError := client.CoreV1().Namespaces().Create(context.TODO(), namespace, metav1.CreateOptions{})
 
-		if err != nil {
-			panic(err)
+		if createNamespaceError != nil {
+			fmt.Println("Failed to create namespace")
+			panic(createNamespaceError)
 		}
 	}
 	fmt.Println("Creating service account...")
@@ -168,7 +173,7 @@ func createProject(namespaceName string, serviceAccountName string, client *kube
 
 }
 
-func createBackupPodNoPVC(nodeName string, projectName string, imageURL string, jobName string, serviceAccountName string) *batchv1.Job {
+func createBackupPodNoPVC(nodeName string, projectName string, imageURL string, jobName string, serviceAccountName string, taintName string, debug bool, debug_header string) *batchv1.Job {
 	// Creates a debug pod from the nodeName passed in
 	// Pod is based on the ose-cli pod and runs an etcd backup
 	// in the future may take namespace and other arguments to make this more flexible
@@ -180,6 +185,16 @@ func createBackupPodNoPVC(nodeName string, projectName string, imageURL string, 
 	cleanupCMD := cmd + " rm -rfv " + tempBackupDir
 	backupCMD := cmd + " /usr/local/bin/cluster-backup.sh " + tempBackupDir
 	tarCMD := cmd + " tar czf " + tempTarball + " " + tempBackupDir
+
+	taintKey := taintName
+	taintVal := ""
+
+	if strings.Contains(taintName, "=") {
+		splitVar := strings.Split(taintName, "=")
+		taintKey = splitVar[0]
+		taintVal = splitVar[1]
+	}
+
 	// using cat to stream the tarball from one host to another is one way to transfer without mounting
 	// any mounts on the debug host
 	jobSpec := &batchv1.Job{
@@ -190,6 +205,12 @@ func createBackupPodNoPVC(nodeName string, projectName string, imageURL string, 
 		Spec: batchv1.JobSpec{
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
+					Tolerations: []corev1.Toleration{
+						{
+							Key:   taintKey,
+							Value: taintVal,
+						},
+					},
 					Containers: []corev1.Container{
 						{
 							Name:            jobName,
@@ -215,7 +236,7 @@ func createBackupPodNoPVC(nodeName string, projectName string, imageURL string, 
 	return (jobSpec)
 }
 
-func createBackupPodWithPVC(nodeName string, projectName string, imageURL string, pvcName string, jobName string, serviceAccountName string) *batchv1.Job {
+func createBackupPodWithPVC(nodeName string, projectName string, imageURL string, pvcName string, jobName string, serviceAccountName string, taintName string, debug bool, debug_header string) *batchv1.Job {
 	// Creates a debug pod from the nodeName passed in
 	// Pod is based on the ose-cli pod and runs an etcd backup
 	// in the future may take namespace and other arguments to make this more flexible
@@ -227,7 +248,18 @@ func createBackupPodWithPVC(nodeName string, projectName string, imageURL string
 	// generate a random UUID for the job name
 	backupCMD := cmd + " /usr/local/bin/cluster-backup.sh " + tempBackupDir
 	tarCMD := cmd + " tar czf " + tempTarball + " " + tempBackupDir
-	test := true
+
+	priv := true
+
+	taintKey := taintName
+	taintVal := ""
+
+	if strings.Contains(taintName, "=") {
+		splitVar := strings.Split(taintName, "=")
+		taintKey = splitVar[0]
+		taintVal = splitVar[1]
+	}
+
 	// using cat to stream the tarball from one host to another is one way to transfer without mounting
 	// any mounts on the debug host
 	moveTarballCMD := cmd + " cat " + tempTarball + " > /backups/backup_$(date +%Y-%m-%d_%H-%M_%Z).db.tgz"
@@ -240,6 +272,12 @@ func createBackupPodWithPVC(nodeName string, projectName string, imageURL string
 		Spec: batchv1.JobSpec{
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
+					Tolerations: []corev1.Toleration{
+						{
+							Key:   taintKey,
+							Value: taintVal,
+						},
+					},
 					Containers: []corev1.Container{
 						{
 							Name:            jobName,
@@ -257,7 +295,7 @@ func createBackupPodWithPVC(nodeName string, projectName string, imageURL string
 								},
 							},
 							SecurityContext: &corev1.SecurityContext{
-								Privileged: &test,
+								Privileged: &priv,
 							},
 						},
 					},
@@ -285,7 +323,7 @@ func createBackupPodWithPVC(nodeName string, projectName string, imageURL string
 	return (jobSpec)
 }
 
-func createPersistentVolume(namespaceName string, nfsServer string, nfsPath string, client *kubernetes.Clientset) {
+func createPersistentVolume(namespaceName string, nfsServer string, nfsPath string, debug bool, debug_header string, pvcName string, client *kubernetes.Clientset) {
 	// This assumes the creation of an NFS volume
 	// It will create the PV with a ClaimRef so that no other PVCs will bind to it
 	accessMode := []corev1.PersistentVolumeAccessMode{"ReadWriteMany"}
@@ -319,15 +357,42 @@ func createPersistentVolume(namespaceName string, nfsServer string, nfsPath stri
 		},
 	}
 
-	_, err := client.CoreV1().PersistentVolumes().Update(context.TODO(), volumeSpec, metav1.UpdateOptions{})
+	// get the persistent volumes
+	_, getPVError := client.CoreV1().PersistentVolumes().Get(context.TODO(), volumeName, metav1.GetOptions{})
 
-	if err != nil {
-		panic(err)
+	if getPVError != nil {
+		if debug != false {
+			fmt.Printf("%s %s\n", debug_header, getPVError)
+		}
+		fmt.Println("No existing Persistent Volume found, creating a new one...")
+		_, createPVError := client.CoreV1().PersistentVolumes().Create(context.TODO(), volumeSpec, metav1.CreateOptions{})
+		if createPVError != nil {
+			fmt.Println("Failed to create Persistent Volume...")
+			panic(createPVError)
+		}
+		return
+	}
+	// We want to only update the PersistentVolume if the Claim is unbound or in another state
+	// If the claim is already bound, don't touch the PV
+	claimOutput, _ := client.CoreV1().PersistentVolumeClaims(namespaceName).Get(context.TODO(), pvcName, metav1.GetOptions{})
+	if claimOutput.Status.Phase == "Bound" {
+		fmt.Printf("%s PVC is already bound to the PV... No action taken\n", debug_header)
+		return
+	}
+	// Because OCP adds resource versions and uuid, if the PVC gets deleted for some reason, the PV will never become bound
+	// Therefore we want to update the PV definition to remove UUID and resource version information
+	_, updatePVError := client.CoreV1().PersistentVolumes().Update(context.TODO(), volumeSpec, metav1.UpdateOptions{})
+	fmt.Printf("%s the PV has been updated with the new PVC", debug_header)
+	if updatePVError != nil {
+		fmt.Println("Failed to update Persistent Volume...")
+		panic(updatePVError)
 	}
 }
 
-func createMissingPVCs(namespaceName string, pvcName string, volumeName, volumeSize string, client *kubernetes.Clientset) {
-	//
+func createMissingPVCs(namespaceName string, pvcName string, volumeName, volumeSize string, debug bool, debug_header string, client *kubernetes.Clientset) {
+	//This function will create a PVC if it doesn't exist already
+	// Additionally, it will check to make sure that the PVC is not lost
+	// if it is, the pvc will be deleted and recreated
 
 	pvcSpec := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
@@ -343,7 +408,6 @@ func createMissingPVCs(namespaceName string, pvcName string, volumeName, volumeS
 				},
 			},
 			VolumeName: volumeName,
-			//VolumeMode: &v1.PersistentVolumeFilesystem,
 		},
 		Status: corev1.PersistentVolumeClaimStatus{
 			Phase:       corev1.ClaimBound,
@@ -353,13 +417,55 @@ func createMissingPVCs(namespaceName string, pvcName string, volumeName, volumeS
 			},
 		},
 	}
-	_, exist_err := client.CoreV1().PersistentVolumeClaims(namespaceName).Get(context.TODO(), pvcName, metav1.GetOptions{})
+	claimOutput, exist_err := client.CoreV1().PersistentVolumeClaims(namespaceName).Get(context.TODO(), pvcName, metav1.GetOptions{})
 
+	if claimOutput.Status.Phase == "Lost" {
+		deletePVCError := client.CoreV1().PersistentVolumeClaims(namespaceName).Delete(context.TODO(), pvcName, metav1.DeleteOptions{})
+		i := 0
+		// We want to wait up to 30 seconds for a terminating PVC to be removed
+		for i <= 3 {
+			claimOutput, _ := client.CoreV1().PersistentVolumeClaims(namespaceName).Get(context.TODO(), pvcName, metav1.GetOptions{})
+			if claimOutput.Status.Phase != "Terminating" {
+				time.Sleep(10 * time.Second)
+			}
+
+			i++
+		}
+		if deletePVCError != nil {
+			fmt.Println("The PVC was in a 'Lost' state but it could not be removed. Please investigate")
+			panic(deletePVCError)
+		}
+	}
+
+	// a "GET" error is not necessarily bad at first, it could mean this is the first time the job is run
+	// Create the PVC if it doesn't exist
 	if exist_err != nil {
-		_, err := client.CoreV1().PersistentVolumeClaims(namespaceName).Create(context.TODO(), pvcSpec, metav1.CreateOptions{})
+		if debug != false {
+			fmt.Printf("%s Attempting to create the PVC: %s\n", debug_header, pvcName)
+		}
+		_, createPVCError := client.CoreV1().PersistentVolumeClaims(namespaceName).Create(context.TODO(), pvcSpec, metav1.CreateOptions{})
 
-		if err != nil {
-			panic(err)
+		if createPVCError != nil {
+			fmt.Println("Failed to create PVC")
+			panic(createPVCError)
+		}
+		i := 0
+		// Wait for up to 100 seconds for the PVC to become bound
+		for i <= 10 {
+			claimOutput, _ := client.CoreV1().PersistentVolumeClaims(namespaceName).Get(context.TODO(), pvcName, metav1.GetOptions{})
+			if claimOutput.Status.Phase != "Bound" {
+				time.Sleep(10 * time.Second)
+				timeElapsed := i * 10
+				fmt.Printf("PVC is not yet bound after %d\n", timeElapsed)
+			}
+			if claimOutput.Status.Phase == "Bound" {
+				return
+			}
+			i++
+			// If we cannot bind to a PV, halt the program
+			if i == 10 {
+				panic("Problem binding PVC to a PV... exiting")
+			}
 		}
 	}
 
@@ -368,15 +474,64 @@ func createMissingPVCs(namespaceName string, pvcName string, volumeName, volumeS
 func pullBackupLocal(nodeName string, localBackupDirectory string, namespaceName string, jobName string, debug bool, debug_header string, kubeconfig string, client *kubernetes.Clientset) {
 	// There may be times where you cannot attach or do not want to attach a PVC
 	// in this case you want to pull the backup locally
+
+	// tarball should be in our temporary location on the control plane host
+	tempTarball := "/host/tmp/etcd_backup.tar.gz"
+	//tempBackupDir := "/host/tmp/assests"
+	cmd := fmt.Sprintf("KUBECONFIG=%s oc debug node/%s", kubeconfig, nodeName)
+	catCMD := cmd + " -- cat " + tempTarball
+	todayDate := fmt.Sprintf("%d-%d-%d_%d_%d_%d", time.Now().Year(), time.Now().Month(), time.Now().Day(), time.Now().Hour(), time.Now().Minute(), time.Now().Second())
+	localTarballLocation := localBackupDirectory + "/etcd_backup_" + todayDate + ".db.tgz"
+	// this is a hack to get around the error "arguments in resource/name form may not have more than one slash"
+	// seems to be some weird escaping happening in the exec command
+	// perhaps a better way would be to try and create a debug node pod
+	fmt.Println("Attempint to copy tarball locally...")
+	if debug != false {
+		fmt.Printf("%s running the following command \n\t\t\t%s\n", debug_header, catCMD)
+	}
+	output, catTarballError := exec.Command("sh", "-c", catCMD).Output()
+	if catTarballError != nil {
+		fmt.Println("Failed to read remote file")
+		log.Fatal(catTarballError)
+	}
+	// The output is captured as a byte[] so we want to write this out to a file
+	f, createLocalFileError := os.Create(localTarballLocation)
+
+	if createLocalFileError != nil {
+		fmt.Println("Failed to create local file")
+		log.Fatal(createLocalFileError)
+	}
+
+	defer f.Close()
+
+	_, saveFileError := f.Write(output)
+
+	if saveFileError != nil {
+		fmt.Println("Failed to save local file")
+		log.Fatal(saveFileError)
+	}
+
+	fmt.Println("Starting cleanup")
+	cleanupCMD := cmd + " -- rm -fv " + tempTarball
+	if debug != false {
+		fmt.Printf("%s using the following cleanup command:\n\t\t\t  %s\n", debug_header, cleanupCMD)
+	}
+	out2, _ := exec.Command("sh", "-c", cleanupCMD).CombinedOutput()
+
+	fmt.Println(string(out2))
+	return
+}
+
+func waitForJobComplete(namespaceName string, jobName string, debug bool, debug_header string, nodeName string, client *kubernetes.Clientset) bool {
+	// We want to wait for the backup job to actually complete before we attempt to copy the tarball locally
 	i := 0
 	success := false
-
-	// We want to wait for the backup job to actually complete before we attempt to copy the tarball locally
 	for i <= 24 {
-		job, err := client.BatchV1().Jobs(namespaceName).Get(context.TODO(), jobName, metav1.GetOptions{})
+		job, getJobError := client.BatchV1().Jobs(namespaceName).Get(context.TODO(), jobName, metav1.GetOptions{})
 
-		if err != nil {
-			panic(err)
+		if getJobError != nil {
+			fmt.Println("Error getting Job... Might not exist?")
+			panic(getJobError)
 		}
 
 		if job.Status.Active == 0 && job.Status.Succeeded == 0 && job.Status.Failed == 0 {
@@ -391,57 +546,16 @@ func pullBackupLocal(nodeName string, localBackupDirectory string, namespaceName
 			time.Sleep(10 * time.Second)
 			break
 		}
+		if i > 5 {
+			fmt.Println()
+		}
 		time.Sleep(10 * time.Second)
 		i++
 	}
-	if success {
-		// tarball should be in our temporary location on the control plane host
-		tempTarball := "/host/tmp/etcd_backup.tar.gz"
-		//tempBackupDir := "/host/tmp/assests"
-		cmd := fmt.Sprintf("KUBECONFIG=%s oc debug node/%s", kubeconfig, nodeName)
-		catCMD := cmd + " -- cat " + tempTarball
-		todayDate := fmt.Sprintf("%d-%d-%d_%d_%d_%d", time.Now().Year(), time.Now().Month(), time.Now().Day(), time.Now().Hour(), time.Now().Minute(), time.Now().Second())
-		localTarballLocation := localBackupDirectory + "/etcd_backup_" + todayDate + ".db.tgz"
-		// this is a hack to get around the error "arguments in resource/name form may not have more than one slash"
-		// seems to be some weird escaping happening in the exec command
-		// perhaps a better way would be to try and create a debug node pod
-		fmt.Println("Attempint to copy tarball locally...")
-		if debug != false {
-			fmt.Printf("%s running the following command \n\t\t\t%s\n", debug_header, catCMD)
-		}
-		output, err := exec.Command("sh", "-c", catCMD).Output()
-		if err != nil {
-			fmt.Println("Failed to read remote file")
-			log.Fatal(err)
-		}
-		// The output is captured as a byte[] so we want to write this out to a file
-		f, err2 := os.Create(localTarballLocation)
-
-		if err2 != nil {
-			fmt.Println("Failed to create local file")
-			log.Fatal(err2)
-		}
-
-		defer f.Close()
-
-		_, err3 := f.Write(output)
-
-		if err3 != nil {
-			fmt.Println("Failed to save local file")
-			log.Fatal(err3)
-		}
-
-		fmt.Println("Starting cleanup")
-		cleanupCMD := cmd + " -- rm -fv " + tempTarball
-		if debug != false {
-			fmt.Printf("%s using the following cleanup command:\n\t\t\t  %s\n", debug_header, cleanupCMD)
-		}
-		out2, _ := exec.Command("sh", "-c", cleanupCMD).CombinedOutput()
-
-		fmt.Println(string(out2))
-		return
+	if success == false {
+		fmt.Printf("Job did not complete after 240 seconds, something __may__ be wrong. Tarball **MAY** exist on debug node %s but not on localhost", nodeName)
 	}
-	fmt.Printf("Job did not complete after 240 seconds, something may be wrong. Tarball may exist on debug node %s but not on localhost", nodeName)
+	return success
 }
 
 func main() {
@@ -453,6 +567,7 @@ func main() {
 	nfsServer := flag.String("nfs-server", "", "IP or Hostname of the NFS Server")
 	nfsPath := flag.String("nfs-path", "", "NFS Path to save backups to")
 	debug := flag.Bool("debug", false, "Turns on some debug messages")
+	taintName := flag.String("taint", "node-role.kubernetes.io/master", "Specify a taint to ignore")
 	flag.Parse()
 	imageURL := "registry.redhat.io/openshift4/ose-cli:" + *backupPodImage
 	backupProject := *etcdBackupProject
@@ -517,35 +632,38 @@ func main() {
 	// Make sure the backup area exists
 	if *debug != false {
 		fmt.Printf("%s attempting to use project: %s\n", debug_header, backupProject)
-		fmt.Println("Project will be created if it doesn't exist")
+		fmt.Printf("%s Project will be created if it doesn't exist", debug_header)
 	}
-	createProject(backupProject, serviceAccountName, client)
+	createProject(backupProject, serviceAccountName, *debug, debug_header, client)
 
 	// make sure the PV exists
 	//createPersistentVolume(volumeInfo, client)
-	backupJob := createBackupPodNoPVC(debug_node, backupProject, imageURL, jobName, serviceAccountName)
+	backupJob := createBackupPodNoPVC(debug_node, backupProject, imageURL, jobName, serviceAccountName, *taintName, *debug, debug_header)
 	if *usePVC != false {
 		// make sure the pv exists
-		fmt.Println("Creating the Volume")
-		createPersistentVolume(backupProject, *nfsServer, *nfsPath, client)
+		fmt.Println("Checking to see if we need to create PV")
+		createPersistentVolume(backupProject, *nfsServer, *nfsPath, *debug, debug_header, pvcName, client)
 		// make sure the pvc exists
-		fmt.Println("Creating the PVC")
-		createMissingPVCs(backupProject, pvcName, pvName, pvcSize, client)
+		fmt.Println("Checking to see if we need to create PVC")
+		createMissingPVCs(backupProject, pvcName, pvName, pvcSize, *debug, debug_header, client)
 		fmt.Println("Creating the backup job")
 		if *debug != false {
 			fmt.Printf("%s Job: %s\n 			Project: %s \n 			Node: %s\n			PVC: %s\n", debug_header, jobName, backupProject, debug_node, pvcName)
 		}
-		backupJob = createBackupPodWithPVC(debug_node, backupProject, imageURL, pvcName, jobName, serviceAccountName)
+		backupJob = createBackupPodWithPVC(debug_node, backupProject, imageURL, pvcName, jobName, serviceAccountName, *taintName, *debug, debug_header)
 	}
 
-	_, err1 := client.BatchV1().Jobs(backupProject).Create(context.TODO(), backupJob, metav1.CreateOptions{})
-	if *usePVC == false {
-		fmt.Println("Starting to pull backup locally")
-		pullBackupLocal(debug_node, *localBackupDirectory, backupProject, jobName, *debug, debug_header, *kubeConfigFile, client)
+	_, backupJobError := client.BatchV1().Jobs(backupProject).Create(context.TODO(), backupJob, metav1.CreateOptions{})
+	if backupJobError != nil {
+		fmt.Println("!!! Failed to create backup job...")
+		panic(backupJobError)
 	}
-
-	if err1 != nil {
-		panic(err1)
+	success := waitForJobComplete(backupProject, jobName, *debug, debug_header, debug_node, client)
+	if success {
+		if *usePVC == false {
+			fmt.Println("Starting to pull backup locally")
+			pullBackupLocal(debug_node, *localBackupDirectory, backupProject, jobName, *debug, debug_header, *kubeConfigFile, client)
+		}
+		fmt.Println("Backup job complete")
 	}
-
 }
