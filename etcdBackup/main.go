@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"math/rand"
 	"os"
 	"os/exec"
+	"os/user"
 	"strings"
 	"time"
 
@@ -236,7 +238,7 @@ func createBackupPodNoPVC(nodeName string, projectName string, imageURL string, 
 	return (jobSpec)
 }
 
-func createBackupPodWithPVC(nodeName string, projectName string, imageURL string, pvcName string, jobName string, serviceAccountName string, taintName string, debug bool, debug_header string) *batchv1.Job {
+func createBackupPodWithPVC(nodeName string, projectName string, imageURL string, firstPVCName string, secondPVCName string, jobName string, serviceAccountName string, taintName string, debug bool, debug_header string) *batchv1.Job {
 	// Creates a debug pod from the nodeName passed in
 	// Pod is based on the ose-cli pod and runs an etcd backup
 	// in the future may take namespace and other arguments to make this more flexible
@@ -262,17 +264,91 @@ func createBackupPodWithPVC(nodeName string, projectName string, imageURL string
 
 	// using cat to stream the tarball from one host to another is one way to transfer without mounting
 	// any mounts on the debug host
-	moveTarballCMD := cmd + " cat " + tempTarball + " > /backups/backup_$(date +%Y-%m-%d_%H-%M_%Z).db.tgz"
+	copyFirstTarball := cmd + " cat " + tempTarball + " > /backups/backup_$(date +%Y-%m-%d_%H-%M_%Z).db.tgz"
 	cleanupCMD := cmd + " rm -rfv " + tempBackupDir + " && " + cmd + " rm -f " + tempTarball
-	volumeDef := []corev1.Volume{
-		{
-			Name: "etcd-backup-mount",
-			VolumeSource: corev1.VolumeSource{
-				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-					ClaimName: pvcName,
+	fullBackupCMD := []string{
+		"/bin/bash",
+		"-c",
+		backupCMD + " && " + tarCMD + " && " + copyFirstTarball + " && " + cleanupCMD,
+	}
+
+	// We need to define the mount and volume before hand so that in the event there are 2 mount points
+	// We can create the definition for the mounts before the pod definition and just pass the mounts in
+	volumeDef := []corev1.Volume{}
+	mountDef := []corev1.VolumeMount{
+		corev1.VolumeMount{
+			Name:      "etcd-backup-mount",
+			MountPath: "/backups",
+		},
+	}
+	if firstPVCName != "" {
+		if debug != false {
+			fmt.Printf("%s First PVC Name: %s\n", debug_header, firstPVCName)
+		}
+		volumeDef = []corev1.Volume{
+			{
+				Name: "etcd-backup-mount",
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: firstPVCName,
+					},
 				},
 			},
-		},
+		}
+	}
+
+	if secondPVCName != "" {
+		if debug != false {
+			fmt.Printf("%s Second PVC Name: %s\n", debug_header, secondPVCName)
+		}
+		volumeDef = []corev1.Volume{
+			{
+				Name: "etcd-backup-mount",
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: secondPVCName,
+					},
+				},
+			},
+		}
+	}
+
+	// if we have both a dynamic and an NFS PVC defined we want to define the pod to have both
+	if firstPVCName != "" && secondPVCName != "" {
+		copySecondTarballCMD := cmd + " cat " + tempTarball + " > /backups2/backup_$(date +%Y-%m-%d_%H-%M_%Z).db.tgz"
+		fullBackupCMD = []string{
+			"/bin/bash",
+			"-c",
+			backupCMD + " && " + tarCMD + " && " + copyFirstTarball + " && " + copySecondTarballCMD + " && " + cleanupCMD,
+		}
+		mountDef = []corev1.VolumeMount{
+			corev1.VolumeMount{
+				Name:      "etcd-backup-mount",
+				MountPath: "/backups",
+			},
+			corev1.VolumeMount{
+				Name:      "etcd-backup-mount2",
+				MountPath: "/backups2",
+			},
+		}
+		volumeDef = []corev1.Volume{
+			{
+				Name: "etcd-backup-mount",
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: firstPVCName,
+					},
+				},
+			},
+			{
+				Name: "etcd-backup-mount2",
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: secondPVCName,
+					},
+				},
+			},
+		}
 	}
 
 	jobSpec := &batchv1.Job{
@@ -294,17 +370,8 @@ func createBackupPodWithPVC(nodeName string, projectName string, imageURL string
 							Name:            jobName,
 							Image:           imageURL,
 							ImagePullPolicy: corev1.PullIfNotPresent,
-							Command: []string{
-								"/bin/bash",
-								"-c",
-								backupCMD + " && " + tarCMD + " && " + moveTarballCMD + " && " + cleanupCMD,
-							},
-							VolumeMounts: []corev1.VolumeMount{
-								corev1.VolumeMount{
-									Name:      "etcd-backup-mount",
-									MountPath: "/backups",
-								},
-							},
+							Command:         fullBackupCMD,
+							VolumeMounts:    mountDef,
 							SecurityContext: &corev1.SecurityContext{
 								Privileged: &priv,
 							},
@@ -446,19 +513,19 @@ func createPVCDefinition(namespaceName string, pvcName string, volumeName string
 	return accessMode, pvcSpec
 }
 
-func createMissingPVCs(namespaceName string, pvcName string, volumeName string, volumeSize string, debug bool, debug_header string, client *kubernetes.Clientset) {
+func createMissingPVCs(namespaceName string, nfsPVCName string, volumeName string, volumeSize string, debug bool, debug_header string, client *kubernetes.Clientset) {
 	//This function will create a PVC if it doesn't exist already
 	// Additionally, it will check to make sure that the PVC is not lost
 	// if it is, the pvc will be deleted and recreated
 	createPVC := false
 	accessMode := []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
-	claimOutput, exist_err := client.CoreV1().PersistentVolumeClaims(namespaceName).Get(context.TODO(), pvcName, metav1.GetOptions{})
+	claimOutput, exist_err := client.CoreV1().PersistentVolumeClaims(namespaceName).Get(context.TODO(), nfsPVCName, metav1.GetOptions{})
 	if claimOutput.Status.Phase == "Lost" {
-		deletePVCError := client.CoreV1().PersistentVolumeClaims(namespaceName).Delete(context.TODO(), pvcName, metav1.DeleteOptions{})
+		deletePVCError := client.CoreV1().PersistentVolumeClaims(namespaceName).Delete(context.TODO(), nfsPVCName, metav1.DeleteOptions{})
 		i := 0
 		// We want to wait up to 30 seconds for a terminating PVC to be removed
 		for i <= 3 {
-			claimOutput, _ := client.CoreV1().PersistentVolumeClaims(namespaceName).Get(context.TODO(), pvcName, metav1.GetOptions{})
+			claimOutput, _ := client.CoreV1().PersistentVolumeClaims(namespaceName).Get(context.TODO(), nfsPVCName, metav1.GetOptions{})
 			if claimOutput.Status.Phase != "Terminating" {
 				time.Sleep(10 * time.Second)
 			}
@@ -472,7 +539,7 @@ func createMissingPVCs(namespaceName string, pvcName string, volumeName string, 
 	}
 
 	// go get the PVC Sepc
-	accessMode, pvcSpec := createPVCDefinition(namespaceName, pvcName, volumeName, volumeSize, accessMode)
+	accessMode, pvcSpec := createPVCDefinition(namespaceName, nfsPVCName, volumeName, volumeSize, accessMode)
 	if claimOutput.Status.AccessModes != nil {
 		if claimOutput.Status.AccessModes[0] != accessMode[0] {
 			if debug != false {
@@ -490,7 +557,7 @@ func createMissingPVCs(namespaceName string, pvcName string, volumeName string, 
 	// Create the PVC if it doesn't exist
 	if exist_err != nil || createPVC == true {
 		if debug != false {
-			fmt.Printf("%s Attempting to create the PVC: %s\n", debug_header, pvcName)
+			fmt.Printf("%s Attempting to create the PVC: %s\n", debug_header, nfsPVCName)
 		}
 		_, createPVCError := client.CoreV1().PersistentVolumeClaims(namespaceName).Create(context.TODO(), pvcSpec, metav1.CreateOptions{})
 
@@ -501,7 +568,7 @@ func createMissingPVCs(namespaceName string, pvcName string, volumeName string, 
 		i := 0
 		// Wait for up to 100 seconds for the PVC to become bound
 		for i <= 10 {
-			claimOutput, _ := client.CoreV1().PersistentVolumeClaims(namespaceName).Get(context.TODO(), pvcName, metav1.GetOptions{})
+			claimOutput, _ := client.CoreV1().PersistentVolumeClaims(namespaceName).Get(context.TODO(), nfsPVCName, metav1.GetOptions{})
 			if claimOutput.Status.Phase != "Bound" {
 				time.Sleep(10 * time.Second)
 				timeElapsed := i * 10
@@ -619,17 +686,21 @@ func main() {
 	taintName := flag.String("taint", "node-role.kubernetes.io/master", "Specify a taint to ignore")
 	useNFS := flag.Bool("use-nfs", false, "Denotes whether the PVC uses NFS or not")
 	pvName := flag.String("volume-name", "", "NFS Path to save backups to")
-	pvcName := flag.String("claim-name", "", "NFS Path to save backups to")
+	nfsPVCName := flag.String("claim-name", "", "NFS Path to save backups to")
 	useDynamicStorage := flag.Bool("use-dynamic-storage", false, "Create a PVC for dynamic storage")
 	flag.Parse()
 	imageURL := "registry.redhat.io/openshift4/ose-cli:" + *backupPodImage
 	backupProject := *etcdBackupProject
-	pvcSize := "1Gi"
+	pvcSize := "5Gi"
 	serviceAccountName := "openshift-backup"
 	randomUUID := randomString(4)
 	jobName := "etcd-backup-" + randomUUID
 	debug_header := "    (DEBUG)    --->    "
 
+	// dynamic pv and pvc names don't need to be chosen so set the name to blank
+	var dynamicPVCName string
+
+	// do error checking based on if PVCs are being used and if so, which type
 	if *usePVC == true {
 		if *useNFS == true {
 			if *nfsServer == "" {
@@ -646,38 +717,43 @@ func main() {
 
 			}
 			if *pvName == "" {
+				*pvName = "etcd-nfs-backup-vol"
 				if *debug != false {
-					*pvName = "etcd-nfs-backup-vol"
 					fmt.Printf("%s No Volume name speicified!\n", debug_header)
 					fmt.Printf("%s Using: %s\n", debug_header, *pvName)
 				}
 			}
-			if *pvcName == "" {
+			if *nfsPVCName == "" {
+				*nfsPVCName = "etcd-nfs-backup-claim"
 				if *debug != false {
-					*pvcName = "etcd-nfs-backup-claim"
 					fmt.Printf("%s No Claim name speicified!\n", debug_header)
-					fmt.Printf("%s Using: %s\n", debug_header, *pvcName)
+					fmt.Printf("%s Using: %s\n", debug_header, *nfsPVCName)
 
 				}
 			}
 		}
 		if *useDynamicStorage == true {
-			if *pvcName == "" {
-				if *debug != false {
-					*pvcName = "etcd-dynamic-backup-claim"
-					fmt.Printf("%s No Claim name speicified!\n", debug_header)
-					fmt.Printf("%s Using: %s\n", debug_header, *pvcName)
-				}
+			dynamicPVCName = "etcd-dynamic-backup-claim"
+			if *debug != false {
+				fmt.Printf("%s No Claim name speicified!\n", debug_header)
+				fmt.Printf("%s Using: %s\n", debug_header, dynamicPVCName)
 			}
+
 		}
 	}
 
 	// This is a temporary holder until I find a better way to pass in this config
 	// If no kubeconfig is passed in, attempt to find it in a default location
 	if *kubeConfigFile == "" {
-		*kubeConfigFile = "${USER}/.kube/auth/kubeconfig"
 		fmt.Println("No kubeconfig attempting to use ~/.kube/auth/kubeconfig")
+		userName, _ := user.Current()
+		kubePath := fmt.Sprintf("/home/%s/.kube/auth/kubeconfig", userName)
+		if _, err := os.Stat(kubePath); errors.Is(err, os.ErrNotExist) {
+			panic("Kubeconfig was not passed in and does not exist in the default location... cannot continue!")
+		}
+		*kubeConfigFile = "${USER}/.kube/auth/kubeconfig"
 	}
+
 	fmt.Println("Connecting to cluster")
 	if *debug != false {
 		fmt.Printf("%s Connecting using kubeconfig: %s\n", debug_header, *kubeConfigFile)
@@ -716,7 +792,7 @@ func main() {
 		// make sure the pv exists
 		if *useNFS != false {
 			fmt.Println("Checking to see if we need to create PV")
-			createPersistentNFSVolume(backupProject, *nfsServer, *nfsPath, *debug, debug_header, *pvName, *pvcName, client)
+			createPersistentNFSVolume(backupProject, *nfsServer, *nfsPath, *debug, debug_header, *pvName, *nfsPVCName, client)
 		}
 		// make sure the pvc exists
 		fmt.Println("Checking to see if we need to create PVC")
@@ -724,22 +800,25 @@ func main() {
 			if *debug != false {
 				fmt.Printf("%s Creating NFS PVC\n", debug_header)
 			}
-			createMissingPVCs(backupProject, *pvcName, *pvName, pvcSize, *debug, debug_header, client)
+			createMissingPVCs(backupProject, *nfsPVCName, *pvName, pvcSize, *debug, debug_header, client)
 		}
 		if *useDynamicStorage != false {
 			if *debug != false {
 				fmt.Printf("%s Creating Dynamic Storage PVC\n", debug_header)
 			}
-			createMissingPVCs(backupProject, *pvcName, "", pvcSize, *debug, debug_header, client)
+			createMissingPVCs(backupProject, dynamicPVCName, "", pvcSize, *debug, debug_header, client)
 		}
 		fmt.Println("Creating the backup job")
 		if *debug != false {
-			fmt.Printf("%s Job: %s\n 			Project: %s \n 			Node: %s\n			PVC: %s\n", debug_header, jobName, backupProject, debug_node, *pvcName)
+			if *useNFS != false {
+				fmt.Printf("%s Job: %s\n 			Project: %s \n 			Node: %s\n			PVC: %s\n", debug_header, jobName, backupProject, debug_node, *nfsPVCName)
+			}
 		}
-		backupJob = createBackupPodWithPVC(debug_node, backupProject, imageURL, *pvcName, jobName, serviceAccountName, *taintName, *debug, debug_header)
+		backupJob = createBackupPodWithPVC(debug_node, backupProject, imageURL, *nfsPVCName, dynamicPVCName, jobName, serviceAccountName, *taintName, *debug, debug_header)
 	}
 
 	_, backupJobError := client.BatchV1().Jobs(backupProject).Create(context.TODO(), backupJob, metav1.CreateOptions{})
+
 	if backupJobError != nil {
 		fmt.Println("!!! Failed to create backup job...")
 		panic(backupJobError)
