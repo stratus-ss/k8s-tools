@@ -16,20 +16,24 @@ This program assumes that you have a kubeconfig file and that whichever user is 
 Usage:
   -backup-pod-image-version string
         The version of the ose-client to use (default "v4.8")
-  -claim-name string
-        NFS Path to save backups to
   -debug
         Turns on some debug messages
+  -dynamic-claim-name string
+        NFS Path to save backups to
   -etcd-backup-project string
         Which project to create etcd backup pods (default "ocp-etcd-backup")
   -kube-config string
         Full path to kubeconfig
   -local-backup-dir string
         Full LOCAL path to put backup (default "/tmp")
+  -nfs-claim-name string
+        NFS claim to bind to a persistent volume
   -nfs-path string
         NFS Path to save backups to
   -nfs-server string
         IP or Hostname of the NFS Server
+  -nfs-volume-name string
+        NFS Path to save backups to (default "etcd-nfs-backup-vol")
   -taint string
         Specify a taint to ignore (default "node-role.kubernetes.io/master")
   -use-dynamic-storage
@@ -38,8 +42,6 @@ Usage:
         Denotes whether the PVC uses NFS or not
   -use-pvc
         Does the backup pod use a PVC? If not, dump it backup to local directory (default true)
-  -volume-name string
-        NFS Path to save backups to
 ```
 
 ### Eamples:
