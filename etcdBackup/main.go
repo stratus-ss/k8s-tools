@@ -675,7 +675,7 @@ func waitForJobComplete(namespaceName string, jobName string, debug bool, debug_
 }
 
 func main() {
-	backupPodImage := flag.String("backup-pod-image-version", "v4.8", "The version of the ose-client to use")
+	backupPodImage := flag.String("backup-pod-image-version", "v4.9", "The version of the ose-client to use")
 	kubeConfigFile := flag.String("kube-config", "", "Full path to kubeconfig")
 	usePVC := flag.Bool("use-pvc", true, "Does the backup pod use a PVC? If not, dump it backup to local directory")
 	localBackupDirectory := flag.String("local-backup-dir", "/tmp", "Full LOCAL path to put backup")
@@ -683,11 +683,11 @@ func main() {
 	nfsServer := flag.String("nfs-server", "", "IP or Hostname of the NFS Server")
 	nfsPath := flag.String("nfs-path", "", "NFS Path to save backups to")
 	debug := flag.Bool("debug", false, "Turns on some debug messages")
-	taintName := flag.String("taint", "node-role.kubernetes.io/master", "Specify a taint to ignore")
+	taintName := flag.String("taint", "node-role.kubernetes.io/master", "Specify a taint to ignore so the pod can run on the control plane")
 	useNFS := flag.Bool("use-nfs", false, "Denotes whether the PVC uses NFS or not")
 	nfsPVName := flag.String("nfs-volume-name", "etcd-nfs-backup-vol", "NFS Path to save backups to")
-	nfsPVCName := flag.String("nfs-claim-name", "", "NFS claim to bind to a persistent volume")
-	dynamicPVCName := flag.String("dynamic-claim-name", "", "NFS Path to save backups to")
+	nfsPVCName := flag.String("nfs-claim-name", "", "NFS PVC claim name which binds to a persistent volume")
+	dynamicPVCName := flag.String("dynamic-claim-name", "", "Name of the dynamic PVC")
 	useDynamicStorage := flag.Bool("use-dynamic-storage", false, "Create a PVC for dynamic storage")
 	flag.Parse()
 	imageURL := "registry.redhat.io/openshift4/ose-cli:" + *backupPodImage
