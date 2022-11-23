@@ -22,3 +22,9 @@ helm repo add haproxy-ingress https://haproxy-ingress.github.io/charts
 helm repo update
 helm install haproxy-ingress haproxy-ingress/haproxy-ingress  --create-namespace --namespace ingress-controller  --version 0.13.9  -f haproxy-ingress-values.yaml
 
+sleep 60
+
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+kubectl create ns prom
+helm install --namespace prom prom-stack prometheus-community/kube-prometheus-stack
