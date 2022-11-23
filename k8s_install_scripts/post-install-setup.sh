@@ -28,3 +28,17 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 helm repo update
 kubectl create ns prom
 helm install --namespace prom prom-stack prometheus-community/kube-prometheus-stack
+
+kubectl --namespace prom create ingress grafana\
+  --annotation kubernetes.io/ingress.class=haproxy\
+  --rule="grafana.k3s.lab/*=prom-stack-grafana:80,tls"
+
+
+kubectl --namespace prom create ingress alertmanager\
+  --annotation kubernetes.io/ingress.class=haproxy\
+  --rule="alerts.k3s.lab/*=prom-stack-kube-prometheus-alertmanager:9093,tls"
+
+
+kubectl --namespace prom create ingress prom-k8s\
+  --annotation kubernetes.io/ingress.class=haproxy\
+  --rule="prom-k8s.k3s.lab/*=prom-stack-kube-prometheus-prometheus:9090,tls"
