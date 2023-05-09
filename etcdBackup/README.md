@@ -15,36 +15,40 @@ This program assumes that you have a kubeconfig file and that whichever user is 
 ```
 Usage:
   -backup-pod-image-version string
-        The version of the ose-client to use (default "v4.9")
+    	The version of the ose-client to use (default "v4.9")
   -debug
-        Turns on some debug messages
+    	Turns on some debug messages
   -dynamic-claim-name string
-        Name of the dynamic PVC
+    	Name of the dynamic PVC
   -etcd-backup-project string
-        Which project to create etcd backup pods (default "ocp-etcd-backup")
+    	Which project to create etcd backup pods (default "ocp-etcd-backup")
   -kube-config string
-        Full path to kubeconfig
+    	Full path to kubeconfig
   -local-backup-dir string
-        Full LOCAL path to put backup (default "/tmp")
+    	Full LOCAL path to put backup (default "/tmp")
   -nfs-claim-name string
-        NFS PVC claim name which binds to a persistent volume
+    	NFS PVC claim name which binds to a persistent volume
   -nfs-path string
-        NFS Path to save backups to
+    	NFS Path to save backups to
   -nfs-server string
-        IP or Hostname of the NFS Server
+    	IP or Hostname of the NFS Server
   -nfs-volume-name string
-        NFS Path to save backups to (default "etcd-nfs-backup-vol")
+    	NFS Path to save backups to (default "etcd-nfs-backup-vol")
+  -oc-binary-path string
+    	Path to the OC cli binary
   -taint string
-        Specify a taint to ignore so the pod can run on the control plane (default "node-role.kubernetes.io/master")
+    	Specify a taint to ignore so the pod can run on the control plane (default "node-role.kubernetes.io/master")
   -use-dynamic-storage
-        Create a PVC for dynamic storage
+    	Create a PVC for dynamic storage
   -use-nfs
-        Denotes whether the PVC uses NFS or not
+    	Denotes whether the PVC uses NFS or not
   -use-pvc
-        Does the backup pod use a PVC? If not, dump it backup to local directory (default true)
+    	Does the backup pod use a PVC? If not, dump it backup to local directory (default true)
 ```
 
 ### Eamples:
+
+**NOTE:** In order to run as a normal linux cronjob you may want to use the `-oc-binary-path` option when calling this program
 
 Create a backup with an NFS PVC:
 
