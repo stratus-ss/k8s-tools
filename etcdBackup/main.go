@@ -175,12 +175,17 @@ func createProject(namespaceName string, serviceAccountName string, debug bool, 
 
 }
 
-func createBackupPodNoPVC(nodeName string, projectName string, imageURL string, jobName string, serviceAccountName string, taintName string, debug bool, debug_header string) *batchv1.Job {
+func createBackupPodNoPVC(nodeName string, projectName string, imageURL string, jobName string, serviceAccountName string, taintName string, debug bool, debug_header string, ocpBinaryPath string) *batchv1.Job {
 	// Creates a debug pod from the nodeName passed in
 	// Pod is based on the ose-cli pod and runs an etcd backup
 	// in the future may take namespace and other arguments to make this more flexible
 	// this command should be run as a prefix to all commands in the debug pod
-	cmd := "oc debug node/" + nodeName + " -- chroot /host"
+	cmd := ""
+	if ocpBinaryPath == "" {
+		cmd = "oc debug node/" + nodeName + " -- chroot /host"
+	} else {
+		cmd = ocpBinaryPath + "/oc debug node/" + nodeName + " -- chroot /host"
+	}
 	// create a temporary tarball which will eventually be moved to the pod's PVC
 	tempTarball := "/tmp/etcd_backup.tar.gz"
 	tempBackupDir := "/tmp/assets/backup"
@@ -238,12 +243,17 @@ func createBackupPodNoPVC(nodeName string, projectName string, imageURL string, 
 	return (jobSpec)
 }
 
-func createBackupPodWithPVC(nodeName string, projectName string, imageURL string, firstPVCName string, secondPVCName string, jobName string, serviceAccountName string, taintName string, debug bool, debug_header string) *batchv1.Job {
+func createBackupPodWithPVC(nodeName string, projectName string, imageURL string, firstPVCName string, secondPVCName string, jobName string, serviceAccountName string, taintName string, debug bool, debug_header string, ocpBinaryPath string) *batchv1.Job {
 	// Creates a debug pod from the nodeName passed in
 	// Pod is based on the ose-cli pod and runs an etcd backup
 	// in the future may take namespace and other arguments to make this more flexible
 	// this command should be run as a prefix to all commands in the debug pod
-	cmd := "oc debug node/" + nodeName + " -- chroot /host"
+	cmd := ""
+	if ocpBinaryPath == "" {
+		cmd = "oc debug node/" + nodeName + " -- chroot /host"
+	} else {
+		cmd = ocpBinaryPath + "/oc debug node/" + nodeName + " -- chroot /host"
+	}
 	// create a temporary tarball which will eventually be moved to the pod's PVC
 	tempTarball := "/tmp/etcd_backup.tar.gz"
 	tempBackupDir := "/tmp/assets/backup"
@@ -587,14 +597,20 @@ func createMissingPVCs(namespaceName string, nfsPVCName string, volumeName strin
 
 }
 
-func pullBackupLocal(nodeName string, localBackupDirectory string, namespaceName string, jobName string, debug bool, debug_header string, kubeconfig string, client *kubernetes.Clientset) {
+func pullBackupLocal(nodeName string, localBackupDirectory string, namespaceName string, jobName string, debug bool, debug_header string, kubeconfig string, ocpBinaryPath string, client *kubernetes.Clientset) {
 	// There may be times where you cannot attach or do not want to attach a PVC
 	// in this case you want to pull the backup locally
 
 	// tarball should be in our temporary location on the control plane host
 	tempTarball := "/host/tmp/etcd_backup.tar.gz"
+	cmd := ""
 	//tempBackupDir := "/host/tmp/assests"
-	cmd := fmt.Sprintf("KUBECONFIG=%s oc debug node/%s", kubeconfig, nodeName)
+	if ocpBinaryPath == "" {
+		cmd = fmt.Sprintf("KUBECONFIG=%s oc debug node/%s", kubeconfig, nodeName)
+	} else {
+		cmd = fmt.Sprintf("KUBECONFIG=%s %s/oc debug node/%s", kubeconfig, ocpBinaryPath, nodeName)
+	}
+
 	catCMD := cmd + " -- cat " + tempTarball
 	todayDate := fmt.Sprintf("%d-%d-%d_%d_%d_%d", time.Now().Year(), time.Now().Month(), time.Now().Day(), time.Now().Hour(), time.Now().Minute(), time.Now().Second())
 	localTarballLocation := localBackupDirectory + "/etcd_backup_" + todayDate + ".db.tgz"
@@ -689,6 +705,7 @@ func main() {
 	nfsPVCName := flag.String("nfs-claim-name", "", "NFS PVC claim name which binds to a persistent volume")
 	dynamicPVCName := flag.String("dynamic-claim-name", "", "Name of the dynamic PVC")
 	useDynamicStorage := flag.Bool("use-dynamic-storage", false, "Create a PVC for dynamic storage")
+	ocpBinaryPath := flag.String("oc-binary-path", "", "Path to the OC cli binary")
 	flag.Parse()
 	imageURL := "registry.redhat.io/openshift4/ose-cli:" + *backupPodImage
 	backupProject := *etcdBackupProject
@@ -787,7 +804,7 @@ func main() {
 	createProject(backupProject, serviceAccountName, *debug, debug_header, client)
 
 	// make sure the PV exists
-	backupJob := createBackupPodNoPVC(debug_node, backupProject, imageURL, jobName, serviceAccountName, *taintName, *debug, debug_header)
+	backupJob := createBackupPodNoPVC(debug_node, backupProject, imageURL, jobName, serviceAccountName, *taintName, *debug, debug_header, *ocpBinaryPath)
 	if *usePVC {
 		// make sure the pv exists
 		if *useNFS {
@@ -814,7 +831,7 @@ func main() {
 				fmt.Printf("%s Job: %s\n 			Project: %s \n 			Node: %s\n			PVC: %s\n", debug_header, jobName, backupProject, debug_node, *nfsPVCName)
 			}
 		}
-		backupJob = createBackupPodWithPVC(debug_node, backupProject, imageURL, *nfsPVCName, *dynamicPVCName, jobName, serviceAccountName, *taintName, *debug, debug_header)
+		backupJob = createBackupPodWithPVC(debug_node, backupProject, imageURL, *nfsPVCName, *dynamicPVCName, jobName, serviceAccountName, *taintName, *debug, debug_header, *ocpBinaryPath)
 	}
 
 	_, backupJobError := client.BatchV1().Jobs(backupProject).Create(context.TODO(), backupJob, metav1.CreateOptions{})
@@ -827,7 +844,7 @@ func main() {
 	if success {
 		if *usePVC == false {
 			fmt.Println("Starting to pull backup locally")
-			pullBackupLocal(debug_node, *localBackupDirectory, backupProject, jobName, *debug, debug_header, *kubeConfigFile, client)
+			pullBackupLocal(debug_node, *localBackupDirectory, backupProject, jobName, *debug, debug_header, *kubeConfigFile, *ocpBinaryPath, client)
 		}
 		fmt.Println("Backup job complete")
 	}
