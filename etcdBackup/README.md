@@ -53,7 +53,7 @@ Usage:
 Create a backup with an NFS PVC:
 
 ```
-./etcdBackup -kube-config=/home/stratus/temp/kubeconfig -debug=true -etcd-backup-project=backup-etcd -use-pvc=true -nfs-server=192.168.111.115 -nfs-path=/storage/etcd_backups -taint="node-role.kubernetes.io/master"
+./etcdBackup -kube-config=/home/stratus/temp/kubeconfig -use-nfs=true -debug=true -etcd-backup-project=backup-etcd -use-pvc=true -nfs-server=192.168.111.115 -nfs-path=/storage/etcd_backups -taint="node-role.kubernetes.io/master"
 ```
 
 Create a backup with a dynamic PVC:
@@ -65,7 +65,7 @@ Create a backup with a dynamic PVC:
 Create a backup with both NFS and Dynamic PVC (backup file copied to both locations):
 
 ```
-./etcdBackup -kube-config=/home/stratus/temp/kubeconfig -debug=true -etcd-backup-project=backup-etcd -use-pvc=true -nfs-server=192.168.111.115 -nfs-path=/storage/etcd_backups -taint="node-role.kubernetes.io/master" -use-dynamic-storage
+./etcdBackup -kube-config=/home/stratus/temp/kubeconfig -debug=true -etcd-backup-project=backup-etcd -use-pvc=true -nfs-server=192.168.111.115 -nfs-path=/storage/etcd_backups -taint="node-role.kubernetes.io/master" -use-dynamic-storage -use-nfs
 ```
 
 Create a local backup:
