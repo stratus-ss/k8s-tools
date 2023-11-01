@@ -169,7 +169,7 @@ func createProject(namespaceName string, serviceAccountName string, debug bool, 
 	createClusterPriviligedRole(namespaceName, client)
 	createClusterBackupRole(namespaceName, client)
 
-	fmt.Println("Checking to make sure ClusterRole is applied to 'default' service account...")
+	fmt.Println("Checking to make sure ClusterRole is applied to " + serviceAccountName + " service account...")
 	createClusterPriviligedRoleBinding(namespaceName, serviceAccountName, client)
 	createClusterBackupRoleBinding(namespaceName, serviceAccountName, client)
 
