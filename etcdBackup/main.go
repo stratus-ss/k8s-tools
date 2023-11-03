@@ -210,6 +210,18 @@ func createBackupPodNoPVC(nodeName string, projectName string, imageURL string, 
 			Namespace: projectName,
 		},
 		Spec: batchv1.JobSpec{
+			PodFailurePolicy: &batchv1.PodFailurePolicy{
+				Rules: []batchv1.PodFailurePolicyRule{
+					{
+						OnExitCodes: &batchv1.PodFailurePolicyOnExitCodesRequirement{
+							Operator:      batchv1.PodFailurePolicyOnExitCodesOpIn,
+							Values:        []int32{1},
+							ContainerName: &jobName,
+						},
+						Action: batchv1.PodFailurePolicyActionFailJob,
+					},
+				},
+			},
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
 					Tolerations: []corev1.Toleration{
@@ -279,7 +291,7 @@ func createBackupPodWithPVC(nodeName string, projectName string, imageURL string
 	fullBackupCMD := []string{
 		"/bin/bash",
 		"-c",
-		backupCMD + " && " + tarCMD + " && " + copyFirstTarball + " && " + cleanupCMD,
+		backupCMD + " && sleep 3 && " + tarCMD + " && sleep 3 && " + copyFirstTarball + " && sleep 3 && " + cleanupCMD,
 	}
 
 	// We need to define the mount and volume before hand so that in the event there are 2 mount points
@@ -329,7 +341,7 @@ func createBackupPodWithPVC(nodeName string, projectName string, imageURL string
 		fullBackupCMD = []string{
 			"/bin/bash",
 			"-c",
-			backupCMD + " && " + tarCMD + " && " + copyFirstTarball + " && " + copySecondTarballCMD + " && " + cleanupCMD,
+			backupCMD + " && sleep 3 && " + tarCMD + " && sleep 3 && " + copySecondTarballCMD + " && sleep 3 && " + cleanupCMD,
 		}
 		mountDef = []corev1.VolumeMount{
 			corev1.VolumeMount{
@@ -367,6 +379,18 @@ func createBackupPodWithPVC(nodeName string, projectName string, imageURL string
 			Namespace: projectName,
 		},
 		Spec: batchv1.JobSpec{
+			PodFailurePolicy: &batchv1.PodFailurePolicy{
+				Rules: []batchv1.PodFailurePolicyRule{
+					{
+						OnExitCodes: &batchv1.PodFailurePolicyOnExitCodesRequirement{
+							Operator:      batchv1.PodFailurePolicyOnExitCodesOpIn,
+							Values:        []int32{1},
+							ContainerName: &jobName,
+						},
+						Action: batchv1.PodFailurePolicyActionFailJob,
+					},
+				},
+			},
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
 					Tolerations: []corev1.Toleration{
@@ -660,7 +684,6 @@ func waitForJobComplete(namespaceName string, jobName string, debug bool, debug_
 	success := false
 	for i <= 24 {
 		job, getJobError := client.BatchV1().Jobs(namespaceName).Get(context.TODO(), jobName, metav1.GetOptions{})
-
 		if getJobError != nil {
 			fmt.Println("Error getting Job... Might not exist?")
 			panic(getJobError)
@@ -678,6 +701,10 @@ func waitForJobComplete(namespaceName string, jobName string, debug bool, debug_
 			time.Sleep(10 * time.Second)
 			break
 		}
+		if job.Status.Failed > 0 {
+			success = false
+		}
+
 		if i > 5 {
 			fmt.Println()
 		}
