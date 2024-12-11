@@ -1,0 +1,63 @@
+apiVersion: v1
+baseDomain: {{ BASE_DOMAIN }}
+compute:
+- hyperthreading: Enabled
+  name: worker
+  replicas: {{ NUMBER_OF_WORKER_VMS }}
+controlPlane:
+  hyperthreading: Enabled
+  name: master
+  replicas: {{ NUMBER_OF_MASTER_VMS }}
+metadata:
+  name: {{ CLUSTER_NAME }}
+ 
+networking:
+  clusterNetwork:
+  - cidr: {{ CLUSTER_NETWORK }}
+    hostPrefix: 23
+  machineNetwork:
+  - cidr: {{ MACHINE_NETWORK }}
+  networkType: OVNKubernetes
+  serviceNetwork:
+  - {{SERVICE_NETWORK }}
+ 
+platform:
+  baremetal:
+    apiVIPs:
+      - {{ API_VIP }}
+    ingressVIPs:
+      - {{ INGRESS_VIP }}
+    provisioningNetwork: Disabled
+    externalBridge: {{ NETWORK_BRIDGE }}
+    bootstrapExternalStaticIP: {{ BOOTSTRAP_STATIC_IP }}
+    bootstrapExternalStaticGateway: {{ BOOTSTRAP_GW }}
+    bootstrapExternalStaticDNS: {{ BOOTSTRAP_DNS }}
+    hosts:
+{% for host in hosts %}
+    - name: {{ host.name }}
+      role: {{ host.role }}
+      bmc:
+          address: {{ host.bmc.address }}
+          username: {{ host.bmc.username }}
+          password: {{ host.bmc.password }}
+      bootMACAddress: {{ host.bootMACAddress }}
+      bootMode: {{ host.bootMode }}
+      networkDevice:
+        ipAddrs:
+        - {{ host.ipaddress }}
+        gateway: {{ host.gateway }}
+        nameservers:
+{% for ns in host.nameservers %}
+        - {{ ns }}
+{% endfor %}
+{% endfor %} 
+proxy:
+  httpsProxy: {{ HTTPS_PROXY }}
+  httpProxy: {{ HTTP_PROXY }}
+  noProxy: {{ NO_PROXY }}
+ 
+additionalTrustBundle: ''
+ 
+pullSecret: {{ PULL_SECRET }}
+ 
+sshKey: {{ SSH_KEY }}

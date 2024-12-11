@@ -1,0 +1,11 @@
+---
+- name: Generate Cluster Config
+  hosts: localhost
+  vars_files:
+    - vars.yaml
+  
+  tasks:
+    - name: Generate cluster-config.yaml
+      ansible.builtin.template:
+        src: install-config-template.j2
+        dest: install-config.yaml
