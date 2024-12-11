@@ -1,0 +1,15 @@
+---
+- name: Create YAML files for each host
+  hosts: localhost
+  gather_facts: no
+  vars_files:
+    - baremetal-host-vars.yaml  # Replace with the path to your vars file
+
+  tasks:
+    - name: Generate YAML file for each host
+      template:
+        src: baremetal-host-template.j2  # Replace with the path to your Jinja2 template
+        dest: "{{ item.name }}.yaml"
+      loop: "{{ hosts }}"
+      loop_control:
+        label: "{{ item.name }}"

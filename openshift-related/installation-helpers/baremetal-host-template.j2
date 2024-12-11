@@ -1,0 +1,16 @@
+apiVersion: metal3.io/v1alpha1
+kind: BareMetalHost
+metadata:
+  name: {{ item.name }}
+  namespace: openshift-machine-api
+spec:
+  automatedCleaningMode: disabled
+  bmc:
+    address: {{ item.bmc.address }}
+    credentialsName: {{ item.bmc.credentialsName }}
+  bootMACAddress: {{ item.bootMACAddress }}
+  bootMode: legacy
+  online: true
+  preprovisioningNetworkDataName: {{ item.name }}-network-config-secret
+  rootDeviceHints:
+    deviceName: {{ item.installDeviceName }}
