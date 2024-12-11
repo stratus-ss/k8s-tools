@@ -1,0 +1,13 @@
+hosts:  
+  - name: host1
+    bmc:
+      address: ipmi://192.168.1.1
+      credentialsName: host1-bmc-secret
+    bootMACAddress: "00:11:22:33:44:55"
+    installDeviceName: /dev/sdb
+  - name: host2
+    bmc:
+      address: ipmi://192.168.1.2
+      credentialsName: host2-bmc-secret
+    bootMACAddress: "AA:BB:CC:DD:EE:FF"
+    installDeviceName: /dev/sdb

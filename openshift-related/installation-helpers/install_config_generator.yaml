@@ -2,7 +2,7 @@
 - name: Generate Cluster Config
   hosts: localhost
   vars_files:
-    - vars.yaml
+    - install-vars.yaml
   
   tasks:
     - name: Generate cluster-config.yaml

@@ -1,0 +1,93 @@
+---
+BASE_DOMAIN: example.com
+CLUSTER_NAME: my-cluster
+NUMBER_OF_WORKER_VMS: 3
+NUMBER_OF_MASTER_VMS: 3
+CLUSTER_NETWORK: 172.30.0.0/16
+MACHINE_NETWORK: 172.30.240.0/20
+SERVICE_NETWORK: 172.30.240.0/24
+API_VIP: 192.168.122.100
+INGRESS_VIP: 192.168.122.101
+NETWORK_BRIDGE: br0
+BOOTSTRAP_STATIC_IP: 192.168.122.102
+BOOTSTRAP_GW: 192.168.122.1
+BOOTSTRAP_DNS: 8.8.8.8
+HTTPS_PROXY: 
+HTTP_PROXY: 
+NO_PROXY: localhost,127.0.0.1
+PULL_SECRET: "base64 encoded pull secret"
+SSH_KEY: "ssh-rsa AAAAB3NzaC1yc2E..."
+
+hosts:
+  - name: master1
+    role: master
+    bmc:
+      address: 192.168.122.103
+      username: admin
+      password: password123
+    bootMACAddress: 00:25:90:01:02:03
+    bootMode: legacy
+    ipaddress: 192.168.1.11
+    gateway: 192.168.1.1
+    nameservers:
+      - 192.168.1.254
+  - name: master2
+    role: master
+    bmc:
+      address: 192.168.122.104
+      username: admin
+      password: password123
+    bootMACAddress: 00:25:90:01:02:04
+    bootMode: legacy  
+    ipaddress: 192.168.1.12
+    gateway: 192.168.1.1
+    nameservers:
+      - 192.168.1.254
+  - name: master3
+    role: master
+    bmc:
+      address: 192.168.122.105
+      username: admin
+      password: password123
+    bootMACAddress: 00:25:90:01:02:05
+    bootMode: legacy
+    ipaddress: 192.168.1.13
+    gateway: 192.168.1.1
+    nameservers:
+      - 192.168.1.254
+  - name: worker1
+    role: worker
+    bmc:
+      address: 192.168.122.106
+      username: admin
+      password: password123
+    bootMACAddress: 00:25:90:01:02:06
+    bootMode: legacy
+    ipaddress: 192.168.1.13
+    gateway: 192.168.1.1
+    nameservers:
+      - 192.168.1.254
+  - name: worker2
+    role: worker
+    bmc:
+      address: 192.168.122.107
+      username: admin
+      password: password123
+    bootMACAddress: 00:25:90:01:02:07
+    bootMode: legacy
+    ipaddress: 192.168.1.14
+    gateway: 192.168.1.1
+    nameservers:
+      - 192.168.1.254
+  - name: worker3
+    role: worker
+    bmc:
+      address: 192.168.122.108
+      username: admin
+      password: password123
+    bootMACAddress: 00:25:90:01:02:08
+    bootMode: legacy
+    ipaddress: 192.168.1.15
+    gateway: 192.168.1.1
+    nameservers:
+      - 192.168.1.254
