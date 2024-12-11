@@ -4,7 +4,17 @@
   remote_user: core
   gather_facts: yes
   tasks:
-    - name: Display interfaces and MAC addresses
+    - name: Create a dictionary of interfaces and their MAC addresses
+      set_fact:
+        interface_mac_map: >-
+          {{
+            dict(ansible_interfaces | map('extract', ansible_facts) | 
+            selectattr('macaddress', 'defined') | 
+            map(attribute='device') | 
+            zip(ansible_interfaces | map('extract', ansible_facts) | 
+            selectattr('macaddress', 'defined') | 
+            map(attribute='macaddress')))
+          }}
+    - name: Display the interface-to-MAC mapping
       debug:
-        msg: "Interface {{ item }} has MAC address {{ ansible_facts[item]['macaddress']|default('N/A') }}"
-      loop: "{{ ansible_interfaces }}"
+        var: interface_mac_map
