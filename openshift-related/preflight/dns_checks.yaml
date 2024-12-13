@@ -1,0 +1,19 @@
+---
+- name: DNS Lookup Checks
+  hosts: localhost
+  vars_files: 
+    - vars.yaml
+  tasks:
+    - name: Perform forward DNS lookup
+      set_fact:
+        ip_address: "{{ lookup('community.general.dig', item) }}"
+      loop: "{{ dns_fqdn }}"
+      register: forward_lookups
+
+    - name: Assert all forward lookups succeeded
+      assert:
+        that:
+          - item.ansible_facts.ip_address | ipaddr
+        fail_msg: "Failed to obtain IP for {{ item.item }}"
+        success_msg: "Successfully obtained IP for {{ item.item }}: {{ item.ansible_facts.ip_address }}"
+      loop: "{{ forward_lookups.results }}"
