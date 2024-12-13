@@ -6,3 +6,4 @@ dns_fqdn:
   - control2.one.ocp4.x86experts.com
   - control3.one.ocp4.x86experts.com
 current_time: "1970-12-25 00:00:00 UTC"
+block_dev: vda
