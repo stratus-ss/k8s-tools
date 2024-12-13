@@ -1,0 +1,38 @@
+- name: Lets look at some disks
+  hosts: all
+  become: false
+  remote_user: core
+  gather_facts: false
+  vars_files:
+    - vars.yaml
+  tasks:
+    - name: Collect only facts about hardware
+      setup:
+        gather_subset:
+        - hardware
+
+    - name: Check block device size
+      block:
+        - name: Debug device information
+          debug:
+            msg: 
+              - "Raw size string: {{ hostvars[inventory_hostname].ansible_devices[block_dev].size }}"
+              - "Size number: {{ hostvars[inventory_hostname].ansible_devices[block_dev].size | regex_replace('[^0-9.]', '') }}"
+              - "Size unit: {{ hostvars[inventory_hostname].ansible_devices[block_dev].size | regex_replace('[0-9.]', '') | trim }}"
+
+    - name: Validate block device size
+      assert:
+        that:
+          - >-
+            {% set size_str = hostvars[inventory_hostname].ansible_devices[block_dev].size %}
+            {% set size_num = size_str | regex_replace('[^0-9.]', '') | float %}
+            {% set size_unit = size_str | regex_replace('[0-9.]', '') | trim %}
+            {% if size_unit == 'TB' %}
+              {{ size_num * 1024 >= 100 }}
+            {% elif size_unit == 'GB' %}
+              {{ size_num >= 100 }}
+            {% else %}
+              {{ false }}
+            {% endif %}
+        fail_msg: "Block device /dev/{{ block_dev }} is smaller than 100GB (actual size: {{ hostvars[inventory_hostname].ansible_devices[block_dev].size }})"
+        success_msg: "Block device /dev/{{ block_dev }} is 100GB or larger (actual size: {{ hostvars[inventory_hostname].ansible_devices[block_dev].size }})"
