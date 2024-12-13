@@ -1,0 +1,15 @@
+---
+- name: Set the hwclock and sysclock
+  hosts: all
+  remote_user: core
+  gather_facts: yes
+  become: true
+  vars_files:
+    - vars.yaml
+  tasks:
+    - name: set hwclock time
+      shell: hwclock --set --date='{{ current_time }}'
+
+    - name: set sysclock time
+      shell: hwclock --hctosys
+

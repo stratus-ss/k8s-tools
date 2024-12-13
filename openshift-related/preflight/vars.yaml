@@ -1,0 +1,8 @@
+dns_fqdn:
+  - api.one.ocp4.x86experts.com
+  - api-int.one.ocp4.x86experts.com
+  - somehost.apps.one.ocp4.x86experts.com
+  - control1.one.ocp4.x86experts.com
+  - control2.one.ocp4.x86experts.com
+  - control3.one.ocp4.x86experts.com
+current_time: "1970-12-25 00:00:00 UTC"
