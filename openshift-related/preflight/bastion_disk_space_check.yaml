@@ -1,0 +1,56 @@
+---
+- name: validate /var
+  hosts: localhost
+  gather_facts: true  # Changed to true to collect system facts
+  vars:
+    required_var_size: 50000000
+    required_root_size: 100000000
+  tasks:
+    - name: Debug ansible_mounts
+      debug:
+        var: ansible_mounts | selectattr('mount', 'equalto', '/var') |list |first
+
+
+    - name: Check if /var is its own partition
+      set_fact:
+        var_partition: "{{ ansible_mounts | selectattr('mount', 'equalto', '/var') | list | first | default('') }}"
+        root_partition: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | list | first }}"
+
+    - name: Debug ansible_mounts
+      debug:
+        var: var_partition
+    
+    - name: /var mount point exists
+      when: var_partition | length != 0
+      block:
+        - name: Calculate /var size
+          set_fact:
+            var_size: "{{ var_partition.size_total | default(0) }}"
+          
+        - name: Print /var information
+          debug:
+            msg: "/var size is {{ (var_size | int)| human_readable }}"
+
+        - name: Assert /var has enough space
+          assert:
+            that:
+              - (var_size | int) >= required_var_size
+            fail_msg: "/var partition does not have enough space. Required: {{ required_var_size | human_readable }}, Available: {{ var_size | human_readable }}"
+
+
+    - name: Fall back to / if /var doesn't exist
+      when: var_partition | length == 0
+      block:
+          - name: Calculate free space on /
+            set_fact:
+              root_free_space: "{{ root_partition.size_available }}"
+
+          - name: Print / information
+            debug:
+                  msg: "/ size is {{ (root_partition.size_total |int) | human_readable }}, free space is {{ (root_free_space | int)| human_readable }}"
+
+          - name: Assert / has enough space
+            assert:
+              that:
+                - (root_free_space | int) >= required_root_size
+              fail_msg: "/ partition does not have enough free space. Required: {{ (required_root_size |int)| human_readable }}, Available: {{ (root_free_space |int)| human_readable }}"
