@@ -1,0 +1,22 @@
+---
+- name: proxy
+  hosts: linux
+  tasks:
+    - name: check http proxy
+      ansible.builtin.uri:
+        url: http://www.google.com
+        return_content: true
+      environment:
+        http_proxy: "{{ ansible_env.http_proxy }}"
+      register: proxy_check
+    - name: check https proxy
+      ansible.builtin.uri:
+        url: https://www.google.com
+        return_content: true
+      environment:
+        https_proxy: "{{ ansible_env.https_proxy }}"
+      register: proxy_check
+    - name: verify that the proxy check worked
+      ansible.builtin.debug:
+        msg: success
+      failed_when: "'<title>Google</title>' not in proxy_check.content"

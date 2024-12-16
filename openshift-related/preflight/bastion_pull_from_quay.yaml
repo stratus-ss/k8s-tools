@@ -1,0 +1,13 @@
+---
+- name: Verify playbook
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Pull image
+      containers.podman.podman_image:
+        name: quay.io/redhat/openshift-cincinnati-test-public-manual:0.0.0
+        state: present
+    - name: Verify image was pulled
+      containers.podman.podman_image_info:
+        name: quay.io/redhat/openshift-cincinnati-test-public-manual:0.0.0
