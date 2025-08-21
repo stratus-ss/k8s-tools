@@ -1,0 +1,81 @@
+[flake8]
+# Maximum line length - matches black configuration
+max-line-length = 120
+
+# Error codes to ignore
+ignore = 
+    # E203: whitespace before ':' (conflicts with black)
+    E203,
+    # W503: line break before binary operator (conflicts with black)
+    W503,
+    # E501: line too long (handled by black)
+    E501,
+    # F401: imported but unused (common in __init__.py files)
+    # F401,
+    # E402: module level import not at top of file (sometimes needed)
+    # E402,
+
+# Directories and files to exclude from checking
+exclude = 
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    env,
+    .env,
+    build,
+    dist,
+    *.egg-info,
+    .pytest_cache,
+    .coverage,
+    htmlcov,
+    .mypy_cache,
+    .tox,
+    docs,
+    node_modules,
+    # Project-specific exclusions
+    installation-helpers,
+    preflight,
+
+# Enable specific error and warning codes
+select = 
+    E,   # pycodestyle errors
+    W,   # pycodestyle warnings  
+    F,   # pyflakes
+    C,   # mccabe complexity
+    B,   # flake8-bugbear (if available)
+    I,   # isort (if flake8-isort is installed)
+
+# McCabe complexity threshold
+max-complexity = 15
+
+# Flake8-import-order configuration
+import-order-style = google
+application-import-names = replace_control_plane
+
+# Flake8-docstrings configuration  
+docstring-convention = google
+
+# Additional flake8-bugbear settings
+extend-ignore = 
+    # B008: Do not perform function calls in argument defaults
+    # B008,
+
+# Per-file ignores (if needed for specific files)
+per-file-ignores =
+    # Allow unused imports in __init__.py files
+    __init__.py:F401,
+    # Allow longer lines in configuration files
+    */config.py:E501,
+    # Test files can have some relaxed rules
+    test_*.py:D100,D101,D102,D103,D104,
+    *_test.py:D100,D101,D102,D103,D104,
+
+# Flake8 plugins configuration
+# Uncomment if using flake8-annotations
+# suppress-none-returning = True
+# suppress-dummy-args = True
+
+# Flake8-quotes configuration (if using)
+# inline-quotes = double
+# multiline-quotes = double

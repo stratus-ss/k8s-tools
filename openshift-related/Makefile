@@ -1,6 +1,6 @@
 # Makefile for OpenShift Control Plane Replacement Tool
 # Provides code formatting and linting with 120-character line length
-
+# make file created by Cursor.ai
 # Configuration
 PYTHON := python3
 LINE_LENGTH := 120
