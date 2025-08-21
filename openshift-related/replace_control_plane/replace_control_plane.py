@@ -414,7 +414,7 @@ class NodeConfigurator:
         """
         Take the nmstate file and create a base64 encoded string and replaces the data: section.
 
-        Updates the data section in the network-config-secret.yaml file and also updates 
+        Updates the data section in the network-config-secret.yaml file and also updates
         the name of the secret to the replacement node.
         """
         with open(base64_file_path, "r") as f:
@@ -993,7 +993,7 @@ class ResourceMonitor:
                     printer.print_info(f"Machine {self.target_machine_name} not found, continuing to monitor...")
             else:
                 node_number_match = re.search(r"(\d+)", self.replacement_node)
-                node_num = node_number_match.group(1) if node_number_match else 'unknown'
+                node_num = node_number_match.group(1) if node_number_match else "unknown"
                 printer.print_info(f"Looking for machine with node number {node_num}...")
         else:
             printer.print_info("No machines found yet, waiting for machine to appear...")
