@@ -4,22 +4,23 @@
 import os
 import yaml
 
-from .print_manager import printer
-from .utilities import execute_oc_command
-
 
 class BackupManager:
     """Manages backup and file operations for node replacement"""
 
-    def __init__(self, backup_dir=None):
+    def __init__(self, backup_dir=None, printer=None, execute_oc_command=None):
         """
         Initialize BackupManager with backup directory path
 
         Args:
             backup_dir: Optional path to the backup directory. If None, will be determined automatically.
+            printer: Printer instance for output
+            execute_oc_command: Function to execute oc commands
         """
         self.backup_dir = backup_dir
         self.cluster_name = None
+        self.printer = printer
+        self.execute_oc_command = execute_oc_command
 
     def setup_backup_directory(self, backup_dir=None):
         """
@@ -31,32 +32,29 @@ class BackupManager:
         Returns:
             str: Path to the backup directory
         """
+        # Determine backup directory path
         if backup_dir:
             self.backup_dir = backup_dir
         elif not self.backup_dir:
             # Get cluster name from OpenShift DNS
             cluster_cmd = ["get", "dns", "cluster", "-o", "jsonpath='{.spec.baseDomain}'"]
-            self.cluster_name = execute_oc_command(cluster_cmd).strip("'")
+            cluster_output = self.execute_oc_command(cluster_cmd)
+            if cluster_output:
+                self.cluster_name = cluster_output.strip("'")
+            else:
+                self.printer.print_error("Failed to retrieve cluster name from OpenShift DNS")
+                self.cluster_name = "unknown-cluster"
             self.backup_dir = f"/home/{os.getenv('USER', 'unknown')}/backup_yamls/{self.cluster_name}"
 
-        printer.print_info(f"Backup directory: {self.backup_dir}")
-        return self.create_backup_directory()
+        self.printer.print_info(f"Backup directory: {self.backup_dir}")
 
-    def create_backup_directory(self):
-        """
-        Create a backup directory if it doesn't exist.
-
-        Returns:
-            str: Path to the backup directory
-        """
-        if not self.backup_dir:
-            raise ValueError("Backup directory not set. Call setup_backup_directory() first.")
-
+        # Create directory if it doesn't exist
         if not os.path.exists(self.backup_dir):
             os.makedirs(self.backup_dir)
-            printer.print_success(f"Created backup directory: {self.backup_dir}")
+            self.printer.print_success(f"Created backup directory: {self.backup_dir}")
         else:
-            printer.print_info(f"Using existing backup directory: {self.backup_dir}")
+            self.printer.print_info(f"Using existing backup directory: {self.backup_dir}")
+
         return self.backup_dir
 
     def make_file_copy(self, current_file_path, new_file_path):
@@ -101,6 +99,9 @@ class BackupManager:
     def extract_bmh_fields(self, bmh_data):
         """
         Extract specific fields from BareMetal Host (BMH) data for backup purposes.
+
+        Excludes runtime/managed fields like consumerRef, status, and metadata fields
+        that are managed by Kubernetes/OpenShift to ensure clean restoration.
 
         Args:
             bmh_data: Dictionary containing full BMH object data from Kubernetes
@@ -155,7 +156,7 @@ class BackupManager:
             "kind": machine_data.get("kind"),
             "metadata": {
                 "labels": machine_data.get("metadata", {}).get("labels", {}),
-                "name": machine_data.get("metadata", {}).get("name"),
+                "name": "PLACEHOLDER_NAME",  # Will be updated by node configurator
                 "namespace": machine_data.get("metadata", {}).get("namespace"),
             },
             "spec": {
@@ -186,9 +187,13 @@ class BackupManager:
         """
         Backup BMH definition to YAML file
 
+        Note: This function extracts only essential fields for backup purposes.
+        Runtime fields like consumerRef, status, etc. are excluded to ensure
+        clean restoration without conflicts.
+
         Args:
             bmh_name: Name of the BMH
-            bmh_data: BMH data from OpenShift
+            bmh_data: BMH data from OpenShift (may contain runtime fields)
 
         Returns:
             str: Path to the backup file
@@ -216,44 +221,32 @@ class BackupManager:
             yaml.dump(extracted_machine, f, default_flow_style=False)
         return backup_file
 
-    def backup_network_secret(self, node_name):
+    def backup_secret(self, node_name, secret_suffix, backup_filename_suffix, secret_description):
         """
-        Backup network configuration secret
+        General function to backup any OpenShift secret
 
         Args:
             node_name: Name of the node
+            secret_suffix: Suffix for the secret name (e.g., 'network-config-secret', 'bmc-secret')
+            backup_filename_suffix: Suffix for the backup filename
+            secret_description: Human-readable description for error messages
 
         Returns:
             str: Path to the backup file
         """
-        network_secret_json = execute_oc_command(
-            ["secret", "-n", "openshift-machine-api", f"{node_name}-network-config-secret"],
+        secret_name = f"{node_name}-{secret_suffix}"
+        secret_json = self.execute_oc_command(
+            ["get", "secret", "-n", "openshift-machine-api", secret_name, "-o", "json"],
             json_output=True,
+            printer=self.printer,
         )
-        network_secret_json_sanitized = self.sanitize_metadata(network_secret_json)
-        backup_file = f"{self.backup_dir}/{node_name}_network-config-secret.yaml"
+        if not secret_json:
+            raise Exception(f"Failed to retrieve {secret_description} for {node_name}")
+
+        secret_json_sanitized = self.sanitize_metadata(secret_json)
+        backup_file = f"{self.backup_dir}/{node_name}{backup_filename_suffix}"
         with open(backup_file, "w") as f:
-            yaml.dump(network_secret_json_sanitized, f)
-        return backup_file
-
-    def backup_bmc_secret(self, node_name):
-        """
-        Backup BMC secret
-
-        Args:
-            node_name: Name of the node
-
-        Returns:
-            str: Path to the backup file
-        """
-        bmc_secret_json = execute_oc_command(
-            ["secret", "-n", "openshift-machine-api", f"{node_name}-bmc-secret"],
-            json_output=True,
-        )
-        bmc_secret_json_sanitized = self.sanitize_metadata(bmc_secret_json)
-        backup_file = f"{self.backup_dir}/{node_name}-bmc-secret.yaml"
-        with open(backup_file, "w") as f:
-            yaml.dump(bmc_secret_json_sanitized, f)
+            yaml.dump(secret_json_sanitized, f)
         return backup_file
 
     def extract_nmstate_config(self, node_name):
@@ -266,7 +259,7 @@ class BackupManager:
         Returns:
             str: Path to the nmstate file
         """
-        execute_oc_command(
+        self.execute_oc_command(
             [
                 "extract",
                 "-n",
@@ -293,26 +286,112 @@ class BackupManager:
         Returns:
             dict: Dictionary with paths to copied files
         """
+        # Define file copy operations: (dict_key, source_node, dest_suffix, source_suffix)
+        file_operations = [
+            ("nmstate", bad_node, "_nmstate", "_nmstate"),
+            ("bmc_secret", bad_node, "-bmc-secret.yaml", "-bmc-secret.yaml"),
+            ("bmh", bmh_name, "_bmh.yaml", "_bmh.yaml"),
+            ("network_secret", bad_node, "_network-config-secret.yaml", "_network-config-secret.yaml"),
+            ("machine", bad_machine, "_machine.yaml", "_machine.yaml"),
+        ]
+
         files = {}
+        for dict_key, source_node, dest_suffix, source_suffix in file_operations:
+            # Define destination and source paths
+            dest_path = f"{self.backup_dir}/{replacement_node}{dest_suffix}"
+            source_path = f"{self.backup_dir}/{source_node}{source_suffix}"
 
-        # Copy nmstate file
-        files["nmstate"] = f"{self.backup_dir}/{replacement_node}_nmstate"
-        self.make_file_copy(f"{self.backup_dir}/{bad_node}_nmstate", files["nmstate"])
-
-        # Copy BMC secret
-        files["bmc_secret"] = f"{self.backup_dir}/{replacement_node}-bmc-secret.yaml"
-        self.make_file_copy(f"{self.backup_dir}/{bad_node}-bmc-secret.yaml", files["bmc_secret"])
-
-        # Copy BMH file
-        files["bmh"] = f"{self.backup_dir}/{replacement_node}_bmh.yaml"
-        self.make_file_copy(f"{self.backup_dir}/{bmh_name}_bmh.yaml", files["bmh"])
-
-        # Copy network config secret
-        files["network_secret"] = f"{self.backup_dir}/{replacement_node}_network-config-secret.yaml"
-        self.make_file_copy(f"{self.backup_dir}/{bad_node}_network-config-secret.yaml", files["network_secret"])
-
-        # Copy machine file
-        files["machine"] = f"{self.backup_dir}/{replacement_node}_machine.yaml"
-        self.make_file_copy(f"{self.backup_dir}/{bad_machine}_machine.yaml", files["machine"])
+            # Perform the copy operation
+            self.make_file_copy(source_path, dest_path)
+            files[dict_key] = dest_path
 
         return files
+
+    def backup_template_bmh(self, failed_control_node=None, is_control_plane_expansion=False):
+        """
+        Find and back up appropriate BMH template.
+
+        Args:
+            failed_control_node: Name of failed control plane node (for replacement),
+                                 None for worker addition or control plane expansion
+            is_control_plane_expansion: If True, this is control plane expansion; if False, worker addition
+
+        Returns:
+            tuple: (backup_file_path, is_worker_template) or (None, False) if not found
+        """
+
+        if failed_control_node:
+            # Control plane replacement: backup the specific failed node's BMH
+            self.printer.print_action(f"Backing up BMH for failed control node: {failed_control_node}")
+            bmh_data = self.execute_oc_command(
+                ["get", "bmh", failed_control_node, "-n", "openshift-machine-api", "-o", "json"],
+                json_output=True,
+                printer=self.printer,
+            )
+            if not bmh_data:
+                self.printer.print_error(f"Failed to retrieve BMH data for: {failed_control_node}")
+                return None, False
+            if not bmh_data:
+                self.printer.print_error(f"Could not retrieve BMH data for: {failed_control_node}")
+                return None, False
+
+            backup_file_path = self.backup_bmh_definition(failed_control_node, bmh_data)
+            self.printer.print_success(f"Control plane BMH backup saved: {backup_file_path}")
+            return backup_file_path, False  # Not a worker template
+
+        else:
+            # Worker addition or control plane expansion: find appropriate template
+            operation_type = "control plane expansion" if is_control_plane_expansion else "worker addition"
+            try:
+                bmh_json = self.execute_oc_command(
+                    ["get", "bmh", "-n", "openshift-machine-api", "-o", "json"], json_output=True, printer=self.printer
+                )
+                if not bmh_json:
+                    raise Exception("Failed to retrieve BMH list from cluster")
+
+                if not bmh_json.get("items"):
+                    self.printer.print_error("No BMH resources found in cluster")
+                    return None, False
+
+                # Find appropriate templates by role
+                worker_bmh = None
+                control_plane_bmh = None
+
+                for bmh in bmh_json["items"]:
+                    labels = bmh.get("metadata", {}).get("labels", {})
+                    role = labels.get("installer.openshift.io/role", "unknown")
+
+                    if role == "worker" and not worker_bmh:
+                        worker_bmh = bmh
+                    elif role == "control-plane" and not control_plane_bmh:
+                        control_plane_bmh = bmh
+
+                # Select template based on operation type
+                if is_control_plane_expansion:
+                    # For control plane expansion, prefer control plane template
+                    selected_bmh = control_plane_bmh or worker_bmh
+                    if not selected_bmh:
+                        self.printer.print_error("No suitable control plane BMH template found")
+                        return None, False
+                    template_type = "control plane" if control_plane_bmh else "worker (fallback)"
+                else:
+                    # For worker addition, prefer worker template
+                    selected_bmh = worker_bmh or control_plane_bmh
+                    if not selected_bmh:
+                        self.printer.print_error("No suitable BMH template found")
+                        return None, False
+                    template_type = "worker" if worker_bmh else "control plane (fallback)"
+
+                template_bmh_name = selected_bmh["metadata"]["name"]
+                is_worker_template = (
+                    selected_bmh.get("metadata", {}).get("labels", {}).get("installer.openshift.io/role") == "worker"
+                )
+
+                self.printer.print_info(f"Using {template_type} BMH template for {operation_type}: {template_bmh_name}")
+                backup_file_path = self.backup_bmh_definition(template_bmh_name, selected_bmh)
+                self.printer.print_success(f"Template BMH backup saved: {backup_file_path}")
+                return backup_file_path, is_worker_template
+
+            except Exception as e:
+                self.printer.print_error(f"Error finding and backing up template BMH: {e}")
+                return None, False
