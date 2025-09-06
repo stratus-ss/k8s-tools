@@ -4,27 +4,36 @@
 import base64
 import re
 import yaml
+from typing import Optional
 
 from .print_manager import printer
 
 
 class NodeConfigurator:
-    """Manages configuration updates for replacement nodes"""
+    """Manages configuration updates for replacement nodes."""
 
-    def __init__(self):
-        """Initialize NodeConfigurator"""
+    def __init__(self) -> None:
+        """Initialize NodeConfigurator.
+
+        Creates a new NodeConfigurator instance for managing node replacement
+        configuration updates.
+        """
         pass
 
-    def update_nmstate_ip(self, nmstate_file_path, new_ip_address):
-        """
-        Update the IP address in an nmstate YAML file.
+    def update_nmstate_ip(self, nmstate_file_path: str, new_ip_address: str) -> None:
+        """Update the IP address in an nmstate YAML file.
+
+        This method loads an nmstate YAML configuration file, finds the first IPv4
+        interface with an enabled IP configuration, and updates its IP address to
+        the specified new address. The updated configuration is then saved back to
+        the file.
 
         Args:
-            nmstate_file_path: Path to the nmstate YAML file
-            new_ip_address: New IP address to set
+            nmstate_file_path (str): Path to the nmstate YAML file to update.
+            new_ip_address (str): New IP address to set for the interface.
 
-        Returns:
-            None
+        Raises:
+            Exception: If the file cannot be read, parsed, or written to.
         """
         try:
             # Load the nmstate YAML file
@@ -48,12 +57,22 @@ class NodeConfigurator:
         except Exception as e:
             printer.print_error(f"Failed to update IP in {nmstate_file_path}: {e}")
 
-    def update_network_secret(self, base64_file_path, network_config_secret_file_path, replacement_node):
-        """
-        Take the nmstate file and create a base64 encoded string and replaces the data: section.
+    def update_network_secret(
+        self, base64_file_path: str, network_config_secret_file_path: str, replacement_node: str
+    ) -> None:
+        """Update the network configuration secret with base64 encoded nmstate data.
 
-        Updates the data section in the network-config-secret.yaml file and also updates
-        the name of the secret to the replacement node.
+        This method reads the nmstate configuration file, encodes its content as base64,
+        and updates the network configuration secret YAML file with this encoded data.
+        It also updates the secret name to match the replacement node.
+
+        Args:
+            base64_file_path (str): Path to the nmstate file to be base64 encoded.
+            network_config_secret_file_path (str): Path to the network config secret YAML file.
+            replacement_node (str): Name of the replacement node to use in the secret name.
+
+        Raises:
+            Exception: If any file operations fail or YAML parsing errors occur.
         """
         with open(base64_file_path, "r") as f:
             data = f.read()
@@ -65,9 +84,18 @@ class NodeConfigurator:
         with open(network_config_secret_file_path, "w") as f:
             yaml.dump(network_config_secret_data, f, default_flow_style=False)
 
-    def update_bmc_secret_name(self, bmc_secret_file_path, replacement_node):
-        """
-        Take the bmc-secret.yaml file and update the name of the secret to the replacement node
+    def update_bmc_secret_name(self, bmc_secret_file_path: str, replacement_node: str) -> None:
+        """Update the BMC secret name to match the replacement node.
+
+        This method loads the BMC secret YAML file and updates the secret name
+        to follow the pattern '{replacement_node}-bmc-secret'.
+
+        Args:
+            bmc_secret_file_path (str): Path to the BMC secret YAML file.
+            replacement_node (str): Name of the replacement node to use in the secret name.
+
+        Raises:
+            Exception: If the file cannot be read, parsed, or written to.
         """
         with open(bmc_secret_file_path, "r") as f:
             bmc_secret_data = yaml.safe_load(f)
@@ -76,25 +104,35 @@ class NodeConfigurator:
             yaml.dump(bmc_secret_data, f, default_flow_style=False)
 
     def update_bmh(
-        self, bmh_file_path, replacement_node_bmc_ip, replacement_node_mac_address, replacement_node, sushy_uid=None
-    ):
-        """
-        Take the bmh.yaml file and update only the IP address portion of the BMC address.
-        It also replaces the bootMACAddress with the replacement node's mac address
-        And finally it updates the preprovisioningNetworkDataName to the replacement node's network-config-secret
-        Updates the BMC credentialsName to match the replacement node's secret name.
-        Optionally updates the sushy UID in the redfish URL.
-        Ensures the installer.openshift.io/role: control-plane label is present.
+        self,
+        bmh_file_path: str,
+        replacement_node_bmc_ip: str,
+        replacement_node_mac_address: str,
+        replacement_node: str,
+        sushy_uid: Optional[str] = None,
+        role: Optional[str] = None,
+    ) -> None:
+        """Update BareMetalHost (BMH) configuration for node replacement.
+
+        This method updates multiple aspects of a BMH YAML file:
+        - BMC IP address in the BMC address URL
+        - Boot MAC address for the replacement node
+        - Network configuration secret name
+        - BMC credentials secret name
+        - Role-specific labels and userData configuration
+        - Optional sushy UID in redfish URLs
 
         Args:
-            bmh_file_path: Path to the BMH YAML file
-            replacement_node_bmc_ip: New IP address to replace in the BMC address
-            replacement_node_mac_address: MAC address of the replacement node
-            replacement_node: Name of the replacement node
-            sushy_uid: Optional UID to replace in the redfish Systems/ path
+            bmh_file_path (str): Path to the BMH YAML file to update.
+            replacement_node_bmc_ip (str): New BMC IP address for the replacement node.
+            replacement_node_mac_address (str): MAC address of the replacement node's boot interface.
+            replacement_node (str): Name of the replacement node.
+            sushy_uid (str, optional): UID to replace in the redfish Systems/ path.
+            role (str, optional): Node role ('master'/'control-plane' vs 'worker').
+                                Defaults to control-plane behavior if not specified.
 
-        Returns:
-            None
+        Raises:
+            Exception: If the file cannot be read, parsed, or written to.
         """
         try:
             with open(bmh_file_path, "r") as f:
@@ -119,24 +157,50 @@ class NodeConfigurator:
                 else:
                     printer.print_warning("Systems/ pattern not found in BMC address, sushy UID not updated")
 
-            # Update the BMC address
             bmh_data["spec"]["bmc"]["address"] = new_address
-            # Update the bootMACAddress
             bmh_data["spec"]["bootMACAddress"] = replacement_node_mac_address
-            # Update the preprovisioningNetworkDataName
             bmh_data["spec"]["preprovisioningNetworkDataName"] = f"{replacement_node}-network-config-secret"
             bmh_data["metadata"]["name"] = replacement_node
             # Update the BMC credentialsName to match the replacement node's secret name
             bmh_data["spec"]["bmc"]["credentialsName"] = f"{replacement_node}-bmc-secret"
             printer.print_info(f"Updated BMC credentialsName to: {replacement_node}-bmc-secret")
 
-            # Ensure the control-plane role label exists
+            # Handle role labels based on node type
             if "metadata" not in bmh_data:
                 bmh_data["metadata"] = {}
             if "labels" not in bmh_data["metadata"]:
                 bmh_data["metadata"]["labels"] = {}
-            bmh_data["metadata"]["labels"]["installer.openshift.io/role"] = "control-plane"
-            printer.print_info("Ensured control-plane role label is present")
+
+            # Ensure userData section exists
+            if "userData" not in bmh_data["spec"]:
+                bmh_data["spec"]["userData"] = {}
+
+            # Handle different roles (labels and userData configuration)
+            if role == "worker":
+                # For workers: remove all role-related labels to avoid conflicts
+                bmh_data["metadata"]["labels"].pop("installer.openshift.io/role", None)
+                bmh_data["metadata"]["labels"].pop("node-role.kubernetes.io/control-plane", None)
+                bmh_data["metadata"]["labels"].pop("node-role.kubernetes.io/master", None)
+                printer.print_success("Removed all role labels for worker node")
+
+                # Set worker userData
+                bmh_data["spec"]["userData"]["name"] = "worker-user-data-managed"
+                bmh_data["spec"]["userData"]["namespace"] = "openshift-machine-api"
+                printer.print_success("Set BMH userData to worker-user-data-managed")
+            else:
+                # For control plane: ensure control-plane role label exists
+                bmh_data["metadata"]["labels"]["installer.openshift.io/role"] = "control-plane"
+                printer.print_success("Ensured control-plane role label is present")
+
+                # For control plane, use master userData (maintain existing behavior if any)
+                if bmh_data["spec"]["userData"].get("name"):
+                    # Keep existing userData name for control plane
+                    printer.print_info(f"Keeping existing BMH userData: {bmh_data['spec']['userData']['name']}")
+                else:
+                    # Set default for control plane if none exists
+                    bmh_data["spec"]["userData"]["name"] = "master-user-data-managed"
+                    bmh_data["spec"]["userData"]["namespace"] = "openshift-machine-api"
+                    printer.print_success("Set BMH userData to master-user-data-managed")
 
             with open(bmh_file_path, "w") as f:
                 yaml.dump(bmh_data, f, default_flow_style=False)
@@ -144,17 +208,32 @@ class NodeConfigurator:
         except Exception as e:
             printer.print_error(f"Failed to update BMC IP in {bmh_file_path}: {e}")
 
-    def update_machine_yaml(self, machine_file_path, replacement_node, replacement_node_role=None):
-        """
-        Update the machine YAML file with replacement node information and role-specific configurations.
+    def update_machine_yaml(
+        self,
+        machine_file_path: str,
+        replacement_node: str,
+        replacement_node_role: Optional[str] = None,
+        execute_oc_command=None,
+        printer=None,
+    ) -> None:
+        """Update machine YAML configuration for node replacement.
+
+        This method updates a machine YAML file with replacement node information,
+        handling role-specific configurations including lifecycle hooks, userData
+        references, and cluster naming conventions.
 
         Args:
-            machine_file_path: Path to the machine YAML file
-            replacement_node: Name of the replacement node (e.g., "ocp-control3")
-            replacement_node_role: Optional role for the replacement node (defaults to "master")
+            machine_file_path (str): Path to the machine YAML file to update.
+            replacement_node (str): Name of the replacement node (e.g., "ocp-control3").
+                                  Can be a simple name or FQDN, number will be extracted.
+            replacement_node_role (str, optional): Role for the replacement node.
+                                                  Defaults to "master" if not specified.
+            execute_oc_command (callable, optional): Function to execute oc commands for name uniqueness checking.
+            printer (PrintManager, optional): Printer instance for logging updates.
 
-        Returns:
-            None
+        Raises:
+            Exception: If the file cannot be read, parsed, or written to, or if
+                      cluster name extraction fails.
         """
         try:
             with open(machine_file_path, "r") as f:
@@ -163,12 +242,20 @@ class NodeConfigurator:
             # Set default role to master if not provided
             role = replacement_node_role if replacement_node_role else "master"
 
-            # Extract cluster name from existing machine name (e.g., "one-zpspd" from "one-zpspd-master-4")
+            # Extract cluster name from existing machine name or labels
             current_name = machine_data["metadata"]["name"]
-            cluster_name = current_name.split("-")[0] + "-" + current_name.split("-")[1]
+            if current_name == "PLACEHOLDER_NAME":
+                # For expansion scenarios, extract cluster name from machine labels
+                cluster_name = machine_data["metadata"]["labels"].get("machine.openshift.io/cluster-api-cluster")
+                if not cluster_name:
+                    raise ValueError("Cannot determine cluster name - no cluster label found in machine template")
+                printer.print_info(f"Using cluster name '{cluster_name}' from machine labels")
+            else:
+                # Extract from existing machine name (e.g., "one-zpspd" from "one-zpspd-master-4")
+                cluster_name = current_name.split("-")[0] + "-" + current_name.split("-")[1]
+                printer.print_info(f"Extracted cluster name '{cluster_name}' from existing machine name")
 
             # Extract number from replacement_node (handles both simple names and FQDNs)
-            # Examples: "ocp-control3" → "3", "ocp-control3.domain.com" → "3", "control5" → "5"
             node_number_match = re.search(r"(\d+)", replacement_node)
             if node_number_match:
                 node_number = node_number_match.group(1)
@@ -177,12 +264,27 @@ class NodeConfigurator:
                 printer.print_warning(f"Could not extract number from replacement_node '{replacement_node}', using '0'")
                 node_number = "0"
 
-            # Update metadata labels for role and type
             machine_data["metadata"]["labels"]["machine.openshift.io/cluster-api-machine-role"] = role
             machine_data["metadata"]["labels"]["machine.openshift.io/cluster-api-machine-type"] = role
 
-            # Update metadata name to match the pattern: {cluster_name}-{role}-{number}
-            machine_data["metadata"]["name"] = f"{cluster_name}-{role}-{node_number}"
+            # Generate machine name and ensure it's unique
+            proposed_name = f"{cluster_name}-{role}-{node_number}"
+            if printer:
+                printer.print_info(f"Initial proposed machine name: '{proposed_name}'")
+
+            if execute_oc_command and printer:
+                printer.print_info("Checking machine name uniqueness...")
+                final_name = self._ensure_unique_machine_name(proposed_name, execute_oc_command, printer)
+            else:
+                # Fallback if execute_oc_command not provided
+                final_name = proposed_name
+                if printer:
+                    printer.print_warning("Cannot verify machine name uniqueness - execute_oc_command not provided")
+                    printer.print_info(f"Using proposed machine name: '{proposed_name}'")
+
+            if printer:
+                printer.print_info(f"Final machine name selected: '{final_name}'")
+            machine_data["metadata"]["name"] = final_name
 
             # Handle lifecycle hooks based on role
             if role != "master":
@@ -209,7 +311,6 @@ class NodeConfigurator:
 
             machine_data["spec"]["providerSpec"]["value"]["userData"]["name"] = user_data_name
 
-            # Save the updated machine data
             with open(machine_file_path, "w") as f:
                 yaml.dump(machine_data, f, default_flow_style=False)
 
@@ -223,3 +324,80 @@ class NodeConfigurator:
 
         except Exception as e:
             printer.print_error(f"Failed to update machine YAML {machine_file_path}: {e}")
+
+    def _ensure_unique_machine_name(self, proposed_name: str, execute_oc_command, printer) -> str:
+        """
+        Generate a unique machine name by finding the lowest available number for the role.
+
+        This ensures proper resource management by filling gaps in numbering sequence
+        before creating higher-numbered machines.
+
+        Args:
+            proposed_name: The initially proposed machine name
+            execute_oc_command: Function to execute oc commands
+            printer: Printer instance for logging
+
+        Returns:
+            str: A unique machine name using the lowest available number
+        """
+        try:
+            # Get all existing machines using JSON output for reliable parsing
+            machines_data = execute_oc_command(
+                ["get", "machines", "-n", "openshift-machine-api", "-o", "json"],
+                json_output=True,
+                printer=None,  # Don't log this check
+            )
+
+            # Extract cluster name and role from proposed name
+            parts = proposed_name.split("-")
+            if len(parts) >= 3:
+                cluster_name = "-".join(parts[:-2])  # Everything except role and number
+                role = parts[-2]
+
+                # Find all existing numbers for this cluster/role combination
+                existing_numbers = set()
+                if machines_data and machines_data.get("items"):
+                    printer.print_info(f"Scanning existing machines for cluster '{cluster_name}', role '{role}'")
+
+                    for machine in machines_data["items"]:
+                        machine_name = machine["metadata"]["name"]
+
+                        # Check if this machine matches our cluster and role
+                        if machine_name.startswith(f"{cluster_name}-{role}-"):
+                            try:
+                                # Extract the number from the machine name
+                                num_str = machine_name.split("-")[-1]
+                                number = int(num_str)
+                                existing_numbers.add(number)
+                                printer.print_info(
+                                    f"Found existing {role} machine number: {number} (name: {machine_name})"
+                                )
+                            except (ValueError, IndexError):
+                                printer.print_warning(f"Could not parse machine number from: {machine_name}")
+                                continue
+
+                    printer.print_info(f"Existing {role} machine numbers: {sorted(existing_numbers)}")
+
+                # Find the lowest available number (filling gaps first)
+                next_number = 0
+                while next_number in existing_numbers:
+                    next_number += 1
+
+                unique_name = f"{cluster_name}-{role}-{next_number}"
+
+                if unique_name != proposed_name:
+                    printer.print_info(f"Using lowest available machine number: {next_number}")
+                    printer.print_info(f"Generated optimal machine name: '{unique_name}'")
+                else:
+                    printer.print_info(f"Proposed machine name '{proposed_name}' is optimal")
+
+                return unique_name
+
+            # Fallback if we can't parse the name properly
+            printer.print_info(f"Using proposed machine name: '{proposed_name}'")
+            return proposed_name
+
+        except Exception as e:
+            printer.print_warning(f"Could not verify machine name uniqueness: {e}")
+            printer.print_info(f"Proceeding with proposed name: '{proposed_name}'")
+            return proposed_name

@@ -1,0 +1,18 @@
+- name: Use the DRAC to check DNS queries for mounting ISO
+  hosts: localhost
+  tasks:
+    - name: Get DNS configuration from iDRAC
+      community.general.redfish_info:
+        username: "{{ idrac_username }}"
+        password: "{{ idrac_password }}"
+        category: Manager
+        command: GetHostInterfaces
+        baseuri: "{{ current_bmc_host }}"
+      register: result
+      delegate_to: localhost
+      environment:
+        no_proxy: "{{ lookup('env', 'NO_PROXY') }}, {{ current_bmc_host }}"
+
+    - name: Extract DNS Servers
+      set_fact:
+        idrac_dns_servers: "{{ result.redfish_facts.host_interfaces.entries[0].ManagerEthernetInterface.NameServers | reject('equalto', '::') | list }}"
