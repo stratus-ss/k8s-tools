@@ -745,11 +745,15 @@ class TestApplyResourcesAndMonitor:
         """Test successful resource application and monitoring for worker addition"""
         copied_files = sample_copied_files()
 
+        # Store the original side_effect to avoid recursive calls
+        original_side_effect = resource_manager.execute_oc_command.side_effect
+        
         # Ensure the mock returns the correct machineset data for worker scaling
         def mock_get_machineset_cmd(cmd, **kwargs):
             if "get" in cmd and "machineset" in cmd:
                 return sample_machineset_data()
-            return resource_manager.execute_oc_command.side_effect(cmd, **kwargs)
+            # Call the original side_effect for other commands
+            return original_side_effect(cmd, **kwargs)
         
         resource_manager.execute_oc_command.side_effect = mock_get_machineset_cmd
         
