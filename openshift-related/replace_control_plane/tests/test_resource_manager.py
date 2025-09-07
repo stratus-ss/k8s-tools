@@ -41,28 +41,56 @@ def mock_execute_oc_command():
     def _mock_execute_oc(cmd, **kwargs):
         # Check if return_value has been explicitly set by a test  
         if hasattr(mock_func, '_explicit_return_value'):
-            return mock_func._explicit_return_value
-            
+            explicit_value = mock_func._explicit_return_value
+            # Return explicit_value regardless of whether it's None, Mock, or other value
+            if not isinstance(explicit_value, Mock) or explicit_value is None:
+                return explicit_value
+        
+        # Handle json_output parameter - when json_output=True, return data directly
+        json_output = kwargs.get('json_output', False)
+        
         # Default behavior for common commands
         if "get" in cmd and "bmh" in cmd:
-            return sample_bmh_data()
+            data = sample_bmh_data()
+            return data if json_output else (data, "", 0)
         elif "get" in cmd and "machine" in cmd and len(cmd) == 7:  # Single machine get
             machine_name = cmd[2]  # Extract machine name from command
             if "control" in machine_name:
-                return sample_machine_data()  # Control plane machine with owner ref
+                data = sample_machine_data()  # Control plane machine with owner ref
             else:
-                return sample_worker_machine_data()  # Worker machine with owner ref
+                data = sample_worker_machine_data()  # Worker machine with owner ref
+            return data if json_output else (data, "", 0)
         elif "get" in cmd and "machines" in cmd:  # All machines
-            return sample_machines_data()
+            data = sample_machines_data()
+            return data if json_output else (data, "", 0)
         elif "get" in cmd and "machineset" in cmd:
-            return sample_machineset_data()
+            # Handle both singular and plural machineset queries
+            if len(cmd) > 2 and cmd[2] not in ["-n", "machineset"]:  # Single machineset query
+                # Return single machineset object (not wrapped in items)
+                data = {
+                    "apiVersion": "machine.openshift.io/v1beta1",
+                    "kind": "MachineSet",
+                    "metadata": {
+                        "name": "test-worker-machineset", 
+                        "namespace": "openshift-machine-api",
+                    },
+                    "spec": {"replicas": 3},
+                }
+            else:  # Multiple machinesets query
+                data = sample_machineset_data()
+            return data if json_output else (data, "", 0)
         elif "apply" in cmd:
-            return {"success": True}
+            data = {"success": True}
+            return data if json_output else (data, "", 0)
         elif "delete" in cmd:
-            return {"success": True}
+            data = {"success": True}
+            return data if json_output else (data, "", 0)
         elif "scale" in cmd:
-            return {"success": True}
-        return {"success": True}
+            data = {"success": True}
+            return data if json_output else (data, "", 0)
+        
+        data = {"success": True}
+        return data if json_output else (data, "", 0)
 
     mock_func.side_effect = _mock_execute_oc
     return mock_func

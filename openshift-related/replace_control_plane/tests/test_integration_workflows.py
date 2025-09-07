@@ -55,8 +55,23 @@ class TestIntegrationWorkflows:
         """Mock external dependencies but keep internal logic intact"""
         mocks = {}
         
-        # Mock external command execution
-        mocks['execute_oc_command'] = Mock(return_value=("success", "", 0))
+        # Mock external command execution - return proper data structure based on json_output
+        def mock_execute_oc_command(command, *args, **kwargs):
+            json_output = kwargs.get('json_output', False)
+            
+            if "get bmh" in ' '.join(command) or "get baremetalhosts" in ' '.join(command):
+                data = {"items": [{"metadata": {"name": "test-bmh"}}]}
+                return data if json_output else (data, "", 0)
+            elif "get machines" in ' '.join(command):
+                data = {"items": [{"metadata": {"name": "test-machine"}}]}
+                return data if json_output else (data, "", 0)
+            elif "get machinesets" in ' '.join(command):
+                data = {"items": [{"metadata": {"name": "test-machineset"}}]}
+                return data if json_output else (data, "", 0)
+            else:
+                data = "success"
+                return data if json_output else (data, "", 0)
+        mocks['execute_oc_command'] = Mock(side_effect=mock_execute_oc_command)
         
         # Mock BMH operations  
         mocks['find_bmh_by_pattern'] = Mock(return_value=[{'metadata': {'name': 'existing-bmh'}}])
