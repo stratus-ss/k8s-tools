@@ -354,7 +354,7 @@ class TestMetadataSanitization:
                 "name": "essential-resource",
                 "namespace": "essential-ns",
                 "labels": {"critical": "yes"},
-                "generation": 2,  # Should be preserved (not in removal list)
+                "generation": 2,  # Should be removed (is in removal list)
             }
         }
 
@@ -364,7 +364,7 @@ class TestMetadataSanitization:
         assert metadata["name"] == "essential-resource"
         assert metadata["namespace"] == "essential-ns"
         assert metadata["labels"]["critical"] == "yes"
-        assert metadata["generation"] == 2
+        assert "generation" not in metadata  # Should be removed
 
 
 # =============================================================================
