@@ -35,20 +35,20 @@ def mock_printer():
 @pytest.fixture
 def mock_execute_oc_command():
     """Mock function for executing OpenShift CLI commands"""
-    
+
     mock_func = Mock()
-    
+
     def _mock_execute_oc(cmd, **kwargs):
-        # Check if return_value has been explicitly set by a test  
-        if hasattr(mock_func, '_explicit_return_value'):
+        # Check if return_value has been explicitly set by a test
+        if hasattr(mock_func, "_explicit_return_value"):
             explicit_value = mock_func._explicit_return_value
             # Return explicit_value regardless of whether it's None, Mock, or other value
             if not isinstance(explicit_value, Mock) or explicit_value is None:
                 return explicit_value
-        
+
         # Handle json_output parameter - when json_output=True, return data directly
-        json_output = kwargs.get('json_output', False)
-        
+        json_output = kwargs.get("json_output", False)
+
         # Default behavior for common commands
         if "get" in cmd and "bmh" in cmd:
             data = sample_bmh_data()
@@ -71,7 +71,7 @@ def mock_execute_oc_command():
                     "apiVersion": "machine.openshift.io/v1beta1",
                     "kind": "MachineSet",
                     "metadata": {
-                        "name": "test-worker-machineset", 
+                        "name": "test-worker-machineset",
                         "namespace": "openshift-machine-api",
                     },
                     "spec": {"replicas": 3},
@@ -88,7 +88,7 @@ def mock_execute_oc_command():
         elif "scale" in cmd:
             data = {"success": True}
             return data if json_output else (data, "", 0)
-        
+
         data = {"success": True}
         return data if json_output else (data, "", 0)
 
@@ -283,11 +283,9 @@ def sample_machineset_data():
                 "apiVersion": "machine.openshift.io/v1beta1",
                 "kind": "MachineSet",
                 "metadata": {
-                    "name": "test-worker-machineset", 
+                    "name": "test-worker-machineset",
                     "namespace": "openshift-machine-api",
-                    "labels": {
-                        "machine.openshift.io/cluster-api-machine-role": "worker"
-                    }
+                    "labels": {"machine.openshift.io/cluster-api-machine-role": "worker"},
                 },
                 "spec": {"replicas": 3},
             }
@@ -501,7 +499,7 @@ class TestBackupBMHAndMachineResources:
             "nonexistent-bmh", bmh_data, mock_backup_manager, 3, 10, 1000.0
         )
 
-        # _handle_simple_failure returns (None, step) - 2-tuple  
+        # _handle_simple_failure returns (None, step) - 2-tuple
         assert result == (None, 3)
 
     def test_backup_bmh_and_machine_no_consumer_ref(self, resource_manager, mock_backup_manager):
@@ -514,7 +512,7 @@ class TestBackupBMHAndMachineResources:
             "test-control-1.example.com", bmh_data, mock_backup_manager, 3, 10, 1000.0
         )
 
-        # _handle_simple_failure returns (None, step) - 2-tuple  
+        # _handle_simple_failure returns (None, step) - 2-tuple
         assert result == (None, 3)
 
     def test_backup_bmh_and_machine_failed_machine_fetch(self, resource_manager, mock_backup_manager):
@@ -526,7 +524,7 @@ class TestBackupBMHAndMachineResources:
             "test-control-1.example.com", bmh_data, mock_backup_manager, 3, 10, 1000.0
         )
 
-        # _handle_simple_failure returns (None, step) - 2-tuple  
+        # _handle_simple_failure returns (None, step) - 2-tuple
         assert result == (None, 3)
 
 
@@ -629,7 +627,7 @@ class TestMachineSetOperations:
         machineset_name = resource_manager.find_machineset_for_machine("test-machine")
 
         # Reset the mock for other tests
-        if hasattr(resource_manager.execute_oc_command, '_explicit_return_value'):
+        if hasattr(resource_manager.execute_oc_command, "_explicit_return_value"):
             del resource_manager.execute_oc_command._explicit_return_value
         assert machineset_name is None
 
@@ -640,7 +638,7 @@ class TestMachineSetOperations:
         machineset_name = resource_manager.find_machineset_for_machine("test-machine")
 
         # Reset the mock for other tests
-        if hasattr(resource_manager.execute_oc_command, '_explicit_return_value'):
+        if hasattr(resource_manager.execute_oc_command, "_explicit_return_value"):
             del resource_manager.execute_oc_command._explicit_return_value
         assert machineset_name is None
 
@@ -747,16 +745,16 @@ class TestApplyResourcesAndMonitor:
 
         # Store the original side_effect to avoid recursive calls
         original_side_effect = resource_manager.execute_oc_command.side_effect
-        
+
         # Ensure the mock returns the correct machineset data for worker scaling
         def mock_get_machineset_cmd(cmd, **kwargs):
             if "get" in cmd and "machineset" in cmd:
                 return sample_machineset_data()
             # Call the original side_effect for other commands
             return original_side_effect(cmd, **kwargs)
-        
+
         resource_manager.execute_oc_command.side_effect = mock_get_machineset_cmd
-        
+
         with patch.object(resource_manager, "scale_machineset_directly", return_value=True) as mock_scale:
             result_files, step = resource_manager.apply_resources_and_monitor(
                 copied_files,
