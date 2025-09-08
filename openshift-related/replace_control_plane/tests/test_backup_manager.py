@@ -273,9 +273,10 @@ class TestDataExtractionAndAccuracy:
         assert "bootMACAddress" in extracted["spec"]
 
     def test_bmh_network_configuration_preservation(
-        self, backup_manager, sample_bmh_with_network_config
+        self, backup_manager, bmh_factory
     ):
         """Test that BMH extraction preserves network configuration for static IP setups"""
+        sample_bmh_with_network_config = bmh_factory(network_config_name="test-node-network-config")
         extracted = backup_manager.extract_bmh_fields(sample_bmh_with_network_config)
         
         # BUSINESS RULE: Network configuration must be preserved for static IP nodes
@@ -321,9 +322,10 @@ class TestDataExtractionAndAccuracy:
                 assert labels[label_key] == original_labels[label_key], f"Label value mismatch for {label_key}"
 
     def test_machine_extraction_provider_spec_preservation(
-        self, backup_manager, sample_machine_with_provider_spec
+        self, backup_manager, machine_factory
     ):
         """Test that Machine extraction preserves provider spec needed for bare metal deployment"""
+        sample_machine_with_provider_spec = machine_factory(include_full_provider_spec=True, include_cluster_labels=False)
         extracted = self._extract_and_validate_machine_base(backup_manager, sample_machine_with_provider_spec)
         
         # BUSINESS RULE: Provider spec must be preserved for bare metal machine deployment
@@ -337,9 +339,10 @@ class TestDataExtractionAndAccuracy:
         assert "lifecycleHooks" in extracted["spec"]
 
     def test_machine_extraction_master_node_configuration(
-        self, backup_manager, sample_master_machine_data
+        self, backup_manager, machine_factory
     ):
         """Test that Machine extraction properly handles master node specific configuration"""
+        sample_master_machine_data = machine_factory(machine_name="master-machine", user_data_name="master-user-data-managed")
         extracted = self._extract_and_validate_machine_base(backup_manager, sample_master_machine_data)
         self._validate_cluster_integration_labels(extracted, sample_master_machine_data)
         
@@ -475,8 +478,13 @@ class TestNetworkConfigurationPreservation:
         assert "resourceVersion" not in metadata  # Should be sanitized
         assert "name" in metadata and "namespace" in metadata  # Should be preserved
 
-    def test_bmh_network_data_name_linking(self, backup_manager, sample_bmh_network_data_linking):
+    def test_bmh_network_data_name_linking(self, backup_manager, bmh_factory):
         """Test that BMH properly links to network configuration secret"""
+        sample_bmh_network_data_linking = bmh_factory(
+            node_name="network-node",
+            network_config_name="network-node-network-config-secret",
+            include_user_data=False
+        )
         extracted = backup_manager.extract_bmh_fields(sample_bmh_network_data_linking)
         
         # BUSINESS RULE: Network data reference must be preserved for proper network configuration
