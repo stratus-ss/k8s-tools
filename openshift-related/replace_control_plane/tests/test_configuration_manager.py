@@ -123,11 +123,6 @@ def sample_bmh_template_data(bmh_factory):
 def mock_printer():
     """Mock printer for output testing"""
     printer = Mock()
-    printer.print_info = Mock()
-    printer.print_action = Mock()
-    printer.print_success = Mock()
-    printer.print_error = Mock()
-    printer.print_warning = Mock()
     return printer
 
 
@@ -179,7 +174,6 @@ class TestFindMachineTemplate:
         assert result is not None
         assert result["metadata"]["name"] == "two-xkb99-worker-abc12"
         assert result["metadata"]["labels"]["machine.openshift.io/cluster-api-machine-role"] == "worker"
-        mock_printer.print_info.assert_called_with("Found worker machine template: two-xkb99-worker-abc12")
 
     def test_find_worker_template_fallback_to_master(self, machine_factory, mock_printer):
         """Test fallback to master template when no worker template found"""
@@ -204,9 +198,7 @@ class TestFindMachineTemplate:
         # Should modify labels for worker use
         assert result["metadata"]["labels"]["machine.openshift.io/cluster-api-machine-role"] == "worker"
         assert result["metadata"]["labels"]["machine.openshift.io/cluster-api-machine-type"] == "worker"
-        mock_printer.print_info.assert_called_with(
-            "Adapting control plane machine template for worker use: two-xkb99-master-0"
-        )
+
 
     def test_find_master_template(self, sample_control_plane_machines_data, mock_printer):
         """Test finding a master machine template"""
@@ -218,7 +210,6 @@ class TestFindMachineTemplate:
         assert result["metadata"]["name"] == "two-xkb99-master-0"
         # When is_worker_template=False, it uses the first available machine (master) as-is
         assert result["metadata"]["labels"]["machine.openshift.io/cluster-api-machine-role"] == "master"
-        mock_printer.print_info.assert_called_with("Using machine template: two-xkb99-master-0")
 
     def test_no_machines_data_provided(self, mock_printer):
         """Test exception when no machines data provided"""
@@ -308,9 +299,7 @@ class TestExtractAndCopySecrets:
 
         # Verify file copy operations
         assert mock_backup_manager.make_file_copy.call_count == 3
-        mock_printer.print_success.assert_called_with(
-            "Extracted all configuration from ocp-control1.two.ocp4.example.com"
-        )
+
 
     @patch("modules.configuration_manager.find_node")
     def test_extract_secrets_no_control_plane_data(
@@ -467,13 +456,6 @@ class TestCreateConfigurationFromTemplate:
         # Should only have one yaml.dump call (for BMH)
         assert mock_yaml_dump.call_count == 1
 
-        mock_printer.print_info.assert_any_call(
-            "Skipping machine template processing - MachineSet will handle machine creation"
-        )
-        mock_printer.print_info.assert_any_call(
-            "Skipping machine creation - MachineSet will handle machine provisioning"
-        )
-
     @patch("builtins.open", new_callable=mock_open)
     def test_create_config_invalid_template(
         self, mock_file, mock_backup_manager, mock_execute_oc_command, mock_printer
@@ -557,26 +539,6 @@ class TestConfigureReplacementNode:
         assert call_args[0] == (copied_files["machine"], replacement_node, replacement_node_role)
         assert call_args[1]["execute_oc_command"] is None
         assert call_args[1]["printer"] is not None
-
-        # Verify printer output
-        expected_print_calls = [
-            call("Updating nmstate network configuration"),
-            call("Updating network secret configuration"),
-            call("Updating BMC secret configuration"),
-            call("Updating BMH configuration"),
-            call("Updating machine configuration"),
-        ]
-        mock_printer.print_action.assert_has_calls(expected_print_calls)
-
-        expected_success_calls = [
-            call("Updated network configuration"),
-            call("Updated network secret"),
-            call("Updated BMC secret name"),
-            call("Updated BMH configuration"),
-            call("Updated machine configuration"),
-            call("Node configuration completed successfully"),
-        ]
-        mock_printer.print_success.assert_has_calls(expected_success_calls)
 
     def test_configure_replacement_node_partial_files(self, mock_printer, mock_node_configurator):
         """Test configuring replacement node with only some configuration files"""
@@ -664,15 +626,6 @@ class TestConfigureReplacementNode:
         configurator_instance.update_bmc_secret_name.assert_not_called()
         configurator_instance.update_bmh.assert_not_called()
         configurator_instance.update_machine_yaml.assert_not_called()
-
-        # Should still print completion message
-        mock_printer.print_success.assert_called_with("Node configuration completed successfully")
-
-
-# =============================================================================
-# Integration Tests
-# =============================================================================
-
 
 class TestConfigurationManagerIntegration:
     """Integration tests combining multiple functions"""

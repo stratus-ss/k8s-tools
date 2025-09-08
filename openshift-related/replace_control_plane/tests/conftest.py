@@ -1478,3 +1478,117 @@ def node_factory():
             }
         }
     return _create_node
+
+
+# =============================================================================
+# ETCD Manager Test Support - Convenience Fixtures for ETCD Operations
+# =============================================================================
+
+@pytest.fixture
+def sample_etcd_control_plane_nodes(node_factory) -> Dict[str, Any]:
+    """ETCD control plane nodes for testing ETCD secret cleanup operations.
+    
+    Uses node_factory to generate a List structure containing 3 control plane nodes
+    matching the specific naming pattern used in ETCD manager tests. This replaces
+    the hardcoded fixture from test_etcd_manager.py.
+    
+    Args:
+        node_factory: Factory fixture for creating Node configurations
+        
+    Returns:
+        Dict containing List-formatted node data with control plane nodes
+    """
+    node1 = node_factory(
+        node_name="ocp-control1.two.ocp4.example.com",
+        is_control_plane=True
+    )
+    node2 = node_factory(
+        node_name="ocp-control2.two.ocp4.example.com", 
+        is_control_plane=True
+    )
+    node3 = node_factory(
+        node_name="ocp-control3.two.ocp4.example.com",
+        is_control_plane=True
+    )
+    
+    return {
+        "apiVersion": "v1",
+        "kind": "List",
+        "items": [node1, node2, node3]
+    }
+
+
+@pytest.fixture  
+def sample_etcd_secrets(secret_factory) -> Dict[str, Any]:
+    """ETCD secrets for testing secret cleanup operations.
+    
+    Uses secret_factory to generate a List structure containing ETCD serving secrets
+    that match the naming patterns used in ETCD manager cleanup tests.
+    
+    Args:
+        secret_factory: Factory fixture for creating Secret configurations
+        
+    Returns:
+        Dict containing List-formatted secret data with ETCD serving secrets
+    """
+    secret1 = secret_factory(
+        secret_name="etcd-serving-ocp-control1.two.ocp4.example.com",
+        namespace="openshift-etcd"
+    )
+    secret2 = secret_factory(
+        secret_name="etcd-serving-ocp-control3.two.ocp4.example.com",
+        namespace="openshift-etcd"
+    )
+    secret3 = secret_factory(
+        secret_name="etcd-peer-ocp-control2.two.ocp4.example.com", 
+        namespace="openshift-etcd"
+    )
+    secret4 = secret_factory(
+        secret_name="etcd-serving-metrics-ocp-control2.two.ocp4.example.com",
+        namespace="openshift-etcd"
+    )
+    
+    return {
+        "apiVersion": "v1",
+        "kind": "List",
+        "items": [secret1, secret2, secret3, secret4]
+    }
+
+
+@pytest.fixture
+def sample_etcd_pods_data(pod_factory) -> Dict[str, Any]:
+    """ETCD pods for testing pod discovery and health operations.
+    
+    Uses pod_factory to generate a List structure containing ETCD pods
+    that match the naming patterns used in ETCD manager pod tests.
+    
+    Args:
+        pod_factory: Factory fixture for creating Pod configurations
+        
+    Returns:
+        Dict containing List-formatted pod data with ETCD pods
+    """
+    pod1 = pod_factory(
+        pod_name="etcd-ocp-control1.two.ocp4.example.com",
+        namespace="openshift-etcd",
+        app_label="etcd",
+        status_phase="Running"
+    )
+    pod2 = pod_factory(
+        pod_name="etcd-ocp-control3.two.ocp4.example.com",
+        namespace="openshift-etcd",
+        app_label="etcd", 
+        status_phase="Running"
+    )
+    pod3 = pod_factory(
+        pod_name="etcd-ocp-control2.two.ocp4.example.com",
+        namespace="openshift-etcd",
+        app_label="etcd", 
+        status_phase="Running"
+    )
+    
+    return {
+        "apiVersion": "v1",
+        "kind": "List",
+        "items": [pod1, pod2, pod3]
+    }
