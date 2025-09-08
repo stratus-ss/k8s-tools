@@ -26,173 +26,97 @@ from modules.configuration_manager import (  # noqa: E402
 
 
 @pytest.fixture
-def sample_control_plane_machines_data():
-    """Real Machine data from OpenShift cluster with control plane machines"""
+def sample_control_plane_machines_data(machine_factory):
+    """Real Machine data from OpenShift cluster with control plane machines - Created using machine_factory for consistency."""
+    machine1 = machine_factory(
+        machine_name="two-xkb99-master-0",
+        cluster_name="two-xkb99",
+        include_cluster_labels=True,
+        machine_role="master",
+        include_spec_metadata=True,
+        include_user_data=False
+    )
+    machine2 = machine_factory(
+        machine_name="two-xkb99-master-1",
+        cluster_name="two-xkb99",
+        include_cluster_labels=True,
+        machine_role="master",
+        include_spec_metadata=True,
+        include_user_data=False
+    )
     return {
         "apiVersion": "v1",
         "kind": "List",
-        "items": [
-            {
-                "apiVersion": "machine.openshift.io/v1beta1",
-                "kind": "Machine",
-                "metadata": {
-                    "name": "two-xkb99-master-0",
-                    "namespace": "openshift-machine-api",
-                    "labels": {
-                        "machine.openshift.io/cluster-api-cluster": "two-xkb99",
-                        "machine.openshift.io/cluster-api-machine-role": "master",
-                        "machine.openshift.io/cluster-api-machine-type": "master",
-                    },
-                },
-                "spec": {
-                    "metadata": {"labels": {"node-role.kubernetes.io/control-plane": ""}},
-                    "providerSpec": {
-                        "value": {
-                            "apiVersion": "machine.openshift.io/v1beta1",
-                            "kind": "BareMetalMachineProviderSpec",
-                        }
-                    },
-                },
-            },
-            {
-                "apiVersion": "machine.openshift.io/v1beta1",
-                "kind": "Machine",
-                "metadata": {
-                    "name": "two-xkb99-master-1",
-                    "namespace": "openshift-machine-api",
-                    "labels": {
-                        "machine.openshift.io/cluster-api-cluster": "two-xkb99",
-                        "machine.openshift.io/cluster-api-machine-role": "master",
-                        "machine.openshift.io/cluster-api-machine-type": "master",
-                    },
-                },
-                "spec": {
-                    "metadata": {"labels": {"node-role.kubernetes.io/control-plane": ""}},
-                    "providerSpec": {
-                        "value": {
-                            "apiVersion": "machine.openshift.io/v1beta1",
-                            "kind": "BareMetalMachineProviderSpec",
-                        }
-                    },
-                },
-            },
-        ],
+        "items": [machine1, machine2]
     }
 
 
 @pytest.fixture
-def sample_mixed_machines_data():
-    """Real Machine data with both control plane and worker machines"""
+def sample_mixed_machines_data(machine_factory):
+    """Real Machine data with both control plane and worker machines - Created using machine_factory for consistency."""
+    master_machine = machine_factory(
+        machine_name="two-xkb99-master-0",
+        cluster_name="two-xkb99",
+        include_cluster_labels=True,
+        machine_role="master",
+        include_spec_metadata=True,
+        include_user_data=False
+    )
+    worker_machine = machine_factory(
+        machine_name="two-xkb99-worker-abc12",
+        cluster_name="two-xkb99", 
+        include_cluster_labels=True,
+        machine_role="worker",
+        include_spec_metadata=True,
+        include_user_data=False
+    )
     return {
         "apiVersion": "v1",
         "kind": "List",
-        "items": [
-            {
-                "apiVersion": "machine.openshift.io/v1beta1",
-                "kind": "Machine",
-                "metadata": {
-                    "name": "two-xkb99-master-0",
-                    "namespace": "openshift-machine-api",
-                    "labels": {
-                        "machine.openshift.io/cluster-api-cluster": "two-xkb99",
-                        "machine.openshift.io/cluster-api-machine-role": "master",
-                        "machine.openshift.io/cluster-api-machine-type": "master",
-                    },
-                },
-                "spec": {
-                    "metadata": {"labels": {"node-role.kubernetes.io/control-plane": ""}},
-                },
-            },
-            {
-                "apiVersion": "machine.openshift.io/v1beta1",
-                "kind": "Machine",
-                "metadata": {
-                    "name": "two-xkb99-worker-abc12",
-                    "namespace": "openshift-machine-api",
-                    "labels": {
-                        "machine.openshift.io/cluster-api-cluster": "two-xkb99",
-                        "machine.openshift.io/cluster-api-machine-role": "worker",
-                        "machine.openshift.io/cluster-api-machine-type": "worker",
-                    },
-                },
-                "spec": {
-                    "metadata": {"labels": {"node-role.kubernetes.io/worker": ""}},
-                },
-            },
-        ],
+        "items": [master_machine, worker_machine]
     }
 
 
 @pytest.fixture
-def sample_control_plane_nodes_data():
-    """Real control plane nodes data"""
+def sample_control_plane_nodes_data(node_factory):
+    """Real control plane nodes data - Created using node_factory for consistency."""
+    node1 = node_factory(
+        node_name="ocp-control1.two.ocp4.example.com",
+        hostname="ocp-control1.two.ocp4.example.com",
+        is_control_plane=True,
+        ready_status="True",
+        memory_pressure="False"
+    )
+    node2 = node_factory(
+        node_name="ocp-control2.two.ocp4.example.com",
+        hostname="ocp-control2.two.ocp4.example.com",
+        is_control_plane=True,
+        ready_status="False",
+        memory_pressure="False"
+    )
     return {
         "apiVersion": "v1",
         "kind": "List",
-        "items": [
-            {
-                "apiVersion": "v1",
-                "kind": "Node",
-                "metadata": {
-                    "name": "ocp-control1.two.ocp4.example.com",
-                    "labels": {
-                        "node-role.kubernetes.io/control-plane": "",
-                        "kubernetes.io/hostname": "ocp-control1.two.ocp4.example.com",
-                    },
-                },
-                "status": {
-                    "conditions": [
-                        {"type": "Ready", "status": "True"},
-                        {"type": "MemoryPressure", "status": "False"},
-                    ]
-                },
-            },
-            {
-                "apiVersion": "v1",
-                "kind": "Node",
-                "metadata": {
-                    "name": "ocp-control2.two.ocp4.example.com",
-                    "labels": {
-                        "node-role.kubernetes.io/control-plane": "",
-                        "kubernetes.io/hostname": "ocp-control2.two.ocp4.example.com",
-                    },
-                },
-                "status": {
-                    "conditions": [
-                        {"type": "Ready", "status": "False"},
-                        {"type": "MemoryPressure", "status": "False"},
-                    ]
-                },
-            },
-        ],
+        "items": [node1, node2]
     }
 
 
 @pytest.fixture
-def sample_bmh_template_data():
-    """Sample BMH template data"""
-    return {
-        "apiVersion": "metal3.io/v1alpha1",
-        "kind": "BareMetalHost",
-        "metadata": {
-            "name": "ocp-control1.two.ocp4.example.com",
-            "namespace": "openshift-machine-api",
-            "labels": {"installer.openshift.io/role": "control-plane"},
-        },
-        "spec": {
-            "architecture": "x86_64",
-            "automatedCleaningMode": "metadata",
-            "bmc": {
-                "address": "redfish-virtualmedia+http://192.168.94.1:8000/redfish/v1/Systems/node1",
-                "credentialsName": "ocp-control1.two.ocp4.example.com-bmc-secret",
-            },
-            "bootMACAddress": "52:54:00:e9:d5:8a",
-            "bootMode": "UEFI",
-            "online": True,
-            "preprovisioningNetworkDataName": "ocp-control1.two.ocp4.example.com-network-config-secret",
-            "rootDeviceHints": {"deviceName": "/dev/vda"},
-        },
-    }
+def sample_bmh_template_data(bmh_factory):
+    """Sample BMH template data - Created using bmh_factory for consistency."""
+    return bmh_factory(
+        node_name="ocp-control1.two.ocp4.example.com",
+        network_config_name="ocp-control1.two.ocp4.example.com-network-config-secret",
+        include_user_data=False,
+        bmc_address="redfish-virtualmedia+http://192.168.94.1:8000/redfish/v1/Systems/node1",
+        boot_mac_address="52:54:00:e9:d5:8a",
+        labels={"installer.openshift.io/role": "control-plane"},
+        architecture="x86_64",
+        automated_cleaning_mode="metadata",
+        boot_mode="UEFI",
+        online=True,
+        root_device_hints={"deviceName": "/dev/vda"}
+    )
 
 
 @pytest.fixture
@@ -257,30 +181,23 @@ class TestFindMachineTemplate:
         assert result["metadata"]["labels"]["machine.openshift.io/cluster-api-machine-role"] == "worker"
         mock_printer.print_info.assert_called_with("Found worker machine template: two-xkb99-worker-abc12")
 
-    def test_find_worker_template_fallback_to_master(self, mock_printer):
+    def test_find_worker_template_fallback_to_master(self, machine_factory, mock_printer):
         """Test fallback to master template when no worker template found"""
-        # Define test data inline - each test gets its own instance
-        test_data = {
+        # Create master-only machines data for fallback testing
+        machine = machine_factory(
+            machine_name="two-xkb99-master-0",
+            cluster_name="two-xkb99", 
+            include_cluster_labels=True,
+            machine_role="master",
+            include_spec_metadata=False,
+            include_user_data=False
+        )
+        sample_master_only_machines_data = {
             "apiVersion": "v1",
-            "kind": "List",
-            "items": [
-                {
-                    "apiVersion": "machine.openshift.io/v1beta1",
-                    "kind": "Machine",
-                    "metadata": {
-                        "name": "two-xkb99-master-0",
-                        "namespace": "openshift-machine-api",
-                        "labels": {
-                            "machine.openshift.io/cluster-api-cluster": "two-xkb99",
-                            "machine.openshift.io/cluster-api-machine-role": "master",
-                            "machine.openshift.io/cluster-api-machine-type": "master",
-                        },
-                    },
-                },
-            ],
+            "kind": "List", 
+            "items": [machine]
         }
-
-        result = _find_machine_template(test_data, is_worker_template=True, printer=mock_printer)
+        result = _find_machine_template(sample_master_only_machines_data, is_worker_template=True, printer=mock_printer)
 
         assert result is not None
         assert result["metadata"]["name"] == "two-xkb99-master-0"
