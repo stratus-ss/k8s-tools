@@ -463,11 +463,8 @@ pip install dist/openshift_control_plane_replacement-1.0.0-py3-none-any.whl
 ## 📄 License & Contributing
 
 ### License
-<<<<<<< HEAD
-This project is licensed under the **GPL-3.0 License** - see the [LICENSE](LICENSE) file for details.
-=======
+
 This project is licensed under the **GPL-3.0 License** - see the [LICENSE](https://github.com/stratus-ss/k8s-tools/blob/main/LICENSE) file for details.
->>>>>>> refactor/code-review-analysis
 
 ### Contributing Guidelines
 
