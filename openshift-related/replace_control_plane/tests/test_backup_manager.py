@@ -29,54 +29,44 @@ from modules.backup_manager import BackupManager  # noqa: E402
 
 
 @pytest.fixture
-def sample_bmh_list():
-    """List of BMH data for template selection tests"""
+def sample_bmh_list(bmh_factory):
+    """List of BMH data for template selection tests - now using bmh_factory"""
+    control_bmh = bmh_factory(
+        node_name="ocp-control1.two.ocp4.example.com",
+        bmc_address="redfish+http://192.168.1.100:8000/redfish/v1/Systems/test",
+        bmc_credentials_name="ocp-control1-bmc-secret",
+        boot_mac_address="52:54:00:12:34:56",
+        labels={"installer.openshift.io/role": "control-plane"},
+        architecture="x86_64",
+        online=True,
+    )
+
+    worker_bmh = bmh_factory(
+        node_name="ocp-worker1.two.ocp4.example.com",
+        bmc_address="redfish+http://192.168.1.101:8000/redfish/v1/Systems/test",
+        bmc_credentials_name="ocp-worker1-bmc-secret",
+        boot_mac_address="52:54:00:12:34:57",
+        labels={"installer.openshift.io/role": "worker"},
+        architecture="x86_64",
+        online=True,
+    )
+
     return {
         "apiVersion": "v1",
         "kind": "List",
-        "items": [
-            {
-                "apiVersion": "metal3.io/v1alpha1",
-                "kind": "BareMetalHost",
-                "metadata": {
-                    "name": "ocp-control1.two.ocp4.example.com",
-                    "namespace": "openshift-machine-api",
-                    "labels": {"installer.openshift.io/role": "control-plane"},
-                },
-                "spec": {"online": True},
-                "status": {"provisioning": {"state": "provisioned"}},
-            },
-            {
-                "apiVersion": "metal3.io/v1alpha1",
-                "kind": "BareMetalHost",
-                "metadata": {"name": "ocp-worker1.two.ocp4.example.com", "namespace": "openshift-machine-api"},
-                "spec": {"online": True},
-                "status": {"provisioning": {"state": "provisioned"}},
-            },
-        ],
+        "items": [control_bmh, worker_bmh],
     }
 
 
 @pytest.fixture
-def sample_nmstate_config():
-    """Sample nmstate network configuration"""
-    return """interfaces:
-- name: eno1
-  type: ethernet
-  state: up
-  ipv4:
-    enabled: true
-    dhcp: false
-    address:
-    - ip: 192.168.1.100
-      prefix-length: 24
-  ipv6:
-    enabled: false"""
-
-
-# =============================================================================
-# Test Metadata Sanitization (Core Functionality)
-# =============================================================================
+def sample_nmstate_config(nmstate_factory):
+    """Sample nmstate network configuration - now using nmstate_factory"""
+    return nmstate_factory(
+        interface_name="eno1",
+        ip_address="192.168.1.100",
+        prefix_length=24,
+        enabled=True,
+    )
 
 
 class TestMetadataSanitization:
@@ -149,10 +139,8 @@ class TestMetadataSanitization:
 class TestBackupDirectorySetup:
     """Test backup directory setup with essential business logic validation"""
 
-    def test_directory_creation_and_functionality(self):
+    def test_directory_creation_and_functionality(self, mock_printer, mock_execute_oc_command):
         """Test backup directory creation, reuse, and basic functionality"""
-        mock_printer = Mock()
-        mock_execute_oc_command = Mock()
         backup_manager = BackupManager(printer=mock_printer, execute_oc_command=mock_execute_oc_command)
 
         with tempfile.TemporaryDirectory() as temp_root:
