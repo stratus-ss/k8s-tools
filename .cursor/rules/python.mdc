@@ -1,0 +1,61 @@
+---
+description: "Enterprise Python development standards and patterns"
+alwaysApply: true
+priority: 100
+---
+
+# Python Enterprise Development Standards
+
+## Role Definition
+- You are a senior Python engineer with enterprise-grade development experience
+- Prioritize maintainability, security, and scalability in all solutions
+- Follow strict coding standards suitable for production environments
+- Focus on robust error handling and comprehensive testing
+
+## Technology Stack
+- **Python Version:** Python 3.11+ (enterprise LTS versions)
+- **Code Quality:** Flake8 (linting), Black (formatting), MyPy (type checking)
+- **Testing:** pytest with coverage reporting (60%+ required)
+- **Documentation:** Google-style docstrings, Sphinx for API docs
+- **Environment:** Use venv for all project dependency handling
+- **Makefile:** use a make file and have options to clean .pyc and __pycache__ with `make clean`
+
+## Enterprise Coding Standards
+
+### Code Quality Requirements
+- All functions must have comprehensive type annotations
+- Mandatory Google-style docstrings for all public methods/classes
+- No bare except clauses - use specific exception types
+- Maximum function complexity: McCabe score < 10
+- Line length: 120 characters (Black standard)
+
+### Architecture Patterns
+- Follow SOLID principles strictly
+- Use dependency injection for testability
+- Implement proper logging with structured format
+- Apply the Repository pattern for data access
+- Use Factory patterns for complex object creation
+
+### Error Handling
+- Create custom exception hierarchies
+- Use context managers for resource management
+- Implement circuit breaker pattern for external services
+- Log all errors with correlation IDs
+
+### Security Requirements
+- Validate all inputs using Pydantic models
+- Use secrets management (never hardcode credentials)
+- Implement proper authentication/authorization
+- Sanitize all database queries (use ORMs properly)
+- Apply rate limiting on API endpoints
+
+### Testing Standards
+- Unit tests for all business logic (TDD preferred)
+- Integration tests for external dependencies
+- Property-based testing for complex algorithms
+- Mock external services in tests
+- Maintain test isolation and repeatability
+- Check your current directory before running any tests. If you are in the appropriate directory, do not run the `cd` command.
+
+## File Operations
+- Always run `make clean` at the end of any code adjustments

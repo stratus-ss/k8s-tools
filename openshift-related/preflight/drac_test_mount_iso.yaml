@@ -1,0 +1,46 @@
+---
+- name: Check if DRAC can mount remote iso
+  hosts: drac_hosts
+  vars:
+    remote_image_url: "https://example.com/rhcos.iso"
+    ansible_user: "{{ idrac_username }}"
+    ansible_password: "{{ idrac_password }}"
+    ansible_network_os: none
+    ansible_become: no
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+  tasks:
+    - name: Verify the media is not mounted {{ inventory_hostname }}
+      raw: "racadm remoteimage -d"
+      register: unmount_result
+      ignore_errors: yes
+
+    - name: Attempt to Mount Remote Media on {{ inventory_hostname }}
+      raw: "racadm remoteimage -c -l {{ remote_image_url }}"
+      register: mount_result
+      ignore_errors: yes
+      until: "'Remote Image is now Configured' in mount_result.stdout"
+      retries: 3
+      delay: 5
+
+    - name: Check Mount Success and Handle Failure on {{ inventory_hostname }}
+      block:
+        - name: Unmount Remote Media on {{ inventory_hostname }}
+          raw: "racadm remoteimage -d"
+          register: unmount_result
+          ignore_errors: yes
+
+        - name: Check status of remote media on {{ inventory_hostname }}
+          raw: "racadm remoteimage -s"
+
+      rescue:
+        - name: Set Failure Variable
+          set_fact:
+            iso_mount_failed: true
+
+        - name: Display Mount Failure on {{ inventory_hostname }}
+          debug:
+            msg: "Failed to mount virtual media on {{ inventory_hostname }} after multiple retries."
+          no_log: true
+
+        - name: End play if at least  one BMC fails to resolve the iso url
+          meta: end_play

@@ -1,0 +1,5 @@
+# Test dependencies for OpenShift Control Plane Replacement Tool tests
+pytest>=7.0.0
+pytest-mock>=3.10.0
+pytest-cov>=4.0.0
+pyyaml>=6.0

@@ -3,6 +3,8 @@
 
 import argparse
 
+from . import print_manager
+
 
 class ArgumentsParser:
     """Handles command-line argument parsing for node replacement operations"""
@@ -70,12 +72,20 @@ class ArgumentsParser:
             action="store_true",
             help="Enable debug output (shows command execution details)",
         )
+        parser.add_argument(
+            "--skip-etcd",
+            action="store_true",
+            help="Skip ETCD member removal and secret cleanup (use when ETCD operations already completed)",
+        )
+        parser.add_argument(
+            "--expand-control-plane",
+            action="store_true",
+            help="Add a new control plane node (expansion) rather than replacing a failed one",
+        )
 
         args = parser.parse_args()
 
         # Set global debug mode
-        from . import print_manager
-
         print_manager.DEBUG_MODE = args.debug
 
         return args

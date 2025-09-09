@@ -86,6 +86,7 @@ class BackupManager:
             "creationTimestamp",
             "resourceVersion",
             "uid",
+            "generation",
             "ownerReferences",
             "annotations",
             "managedFields",
