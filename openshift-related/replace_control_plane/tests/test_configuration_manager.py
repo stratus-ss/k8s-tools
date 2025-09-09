@@ -108,13 +108,6 @@ def sample_bmh_template_data(bmh_factory):
 
 
 @pytest.fixture
-def mock_printer():
-    """Mock printer for output testing"""
-    printer = Mock()
-    return printer
-
-
-@pytest.fixture
 def mock_backup_manager():
     """Mock BackupManager for testing"""
     backup_manager = Mock()
@@ -125,12 +118,6 @@ def mock_backup_manager():
     backup_manager.extract_bmh_fields = Mock()
     backup_manager.extract_machine_fields = Mock()
     return backup_manager
-
-
-@pytest.fixture
-def mock_execute_oc_command():
-    """Mock oc command execution function"""
-    return Mock()
 
 
 @pytest.fixture
@@ -145,12 +132,6 @@ def mock_node_configurator():
 
     configurator_class = Mock(return_value=configurator_instance)
     return configurator_class
-
-
-# =============================================================================
-# Test _find_machine_template Function
-# =============================================================================
-
 
 class TestFindMachineTemplate:
     """Test the _find_machine_template function"""
