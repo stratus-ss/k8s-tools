@@ -55,6 +55,7 @@ priority: 100
 - Property-based testing for complex algorithms
 - Mock external services in tests
 - Maintain test isolation and repeatability
+- Check your current directory before running any tests. If you are in the appropriate directory, do not run the `cd` command.
 
 ## File Operations
 - Always run `make clean` at the end of any code adjustments

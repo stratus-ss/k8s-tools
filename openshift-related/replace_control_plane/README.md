@@ -501,20 +501,15 @@ Use GitHub Issues for:
 
 ## ⭐ Acknowledgments
 
-- **OpenShift Community** - Comprehensive documentation and tooling ecosystem
-- **Metal³ Project** - Bare metal provisioning framework and BMH resources
-- **ETCD Community** - Distributed consensus and cluster management
-- **Python Community** - Testing frameworks, packaging, and development tools
-- **Contributors** - All developers who have improved this tool
+- **OpenShift Community** - For comprehensive documentation and tools
+- **Cursor.AI** - The initial project was written by converting known steps in bash to python. Cursor was used for regex, loop checks and the testing framework.
 
 ---
 
 ## 📚 Additional Resources
 
 - **OpenShift Documentation**: [Control Plane Node Management](https://docs.openshift.com/)
-- **Metal³ Documentation**: [Bare Metal Provisioning](https://metal3.io/)
 - **ETCD Documentation**: [Cluster Administration](https://etcd.io/docs/)
-- **Project Repository**: [k8s-tools on GitHub](https://github.com/stratus-ss/k8s-tools)
 
 > [!TIP]  
 > For production clusters, always test the replacement procedure in a development environment first and ensure you have valid cluster backups before proceeding.
