@@ -97,12 +97,6 @@ def mock_execute_oc_command():
 
 
 @pytest.fixture
-def mock_format_runtime():
-    """Mock function for formatting runtime duration"""
-    return Mock(return_value="5m 30s")
-
-
-@pytest.fixture
 def mock_find_bmh_by_pattern():
     """Mock function for finding BMH by pattern"""
     return Mock(return_value="test-control-1.example.com")
