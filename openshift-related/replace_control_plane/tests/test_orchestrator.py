@@ -27,7 +27,7 @@ KUBECONFIG_PATH = "/home/stratus/temp/kubeconfig"
 @pytest.fixture
 def mock_execute_oc_command(sample_machines_data):
     """Mock function for executing OpenShift CLI commands.
-    
+
     NOTE: This fixture overrides the basic conftest.py version to provide
     orchestrator-specific behavior for machine data queries. The custom logic
     returns sample_machines_data fixture for machine-related commands.
@@ -41,7 +41,6 @@ def mock_execute_oc_command(sample_machines_data):
 
     mock_func = Mock(side_effect=_mock_execute_oc)
     return mock_func
-
 
 
 @pytest.fixture
@@ -184,24 +183,21 @@ def sample_args():
 @pytest.fixture
 def sample_machines_data(machine_factory):
     """Sample machines data for testing using machine_factory.
-    
-    Uses the established machine_factory from conftest.py to generate 
+
+    Uses the established machine_factory from conftest.py to generate
     consistent Machine resources following enterprise factory patterns.
     Returns List structure expected by orchestrator mock commands.
     """
     test_machine = machine_factory(
         machine_name="test-master-0",
-        cluster_name="test-cluster", 
+        cluster_name="test-cluster",
         machine_role="master",
         include_cluster_labels=True,
-        include_spec_metadata=True
+        include_spec_metadata=True,
     )
-    
-    return {
-        "apiVersion": "v1",
-        "kind": "List",
-        "items": [test_machine]
-    }
+
+    return {"apiVersion": "v1", "kind": "List", "items": [test_machine]}
+
 
 class TestNodeOperationOrchestrator:
     """Test cases for NodeOperationOrchestrator class"""
@@ -301,11 +297,11 @@ class TestMacConflictHandling:
         total_steps = orchestrator._handle_existing_mac_conflict("52:54:00:12:34:56", 10)
 
         assert total_steps == 13
-        
+
         # Verify workflow sequence: cordon -> drain -> cleanup
         orchestrator.cordon_node.assert_called_once_with("existing-node", printer=orchestrator.printer)
         orchestrator.drain_node.assert_called_once_with("existing-node", printer=orchestrator.printer)
-        
+
         # Verify cleanup operations were called for the case without machine
         orchestrator.delete_bmh.assert_called_once_with("existing-bmh", printer=orchestrator.printer)
         # Should NOT delete machine since machine_name is None
@@ -336,9 +332,7 @@ class TestMachinesetScaling:
         orchestrator._handle_machineset_scaling("test-machine")
 
         # Verify method completes successfully and finds no machineset
-        orchestrator.find_machineset_for_machine.assert_called_once_with(
-            "test-machine", printer=orchestrator.printer
-        )
+        orchestrator.find_machineset_for_machine.assert_called_once_with("test-machine", printer=orchestrator.printer)
 
     def test_handle_machineset_scaling_annotation_failure(self, orchestrator):
         """Test when annotation fails but scaling continues"""

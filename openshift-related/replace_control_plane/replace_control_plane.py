@@ -3,7 +3,7 @@
 OpenShift Control Plane Replacement Tool - Monolithic Version
 
 This monolithic version contains all components in a single file for easy distribution.
-Generated automatically from modular components on 2025-09-05 15:17:54.
+Generated automatically from modular components on 2025-09-09 13:33:50.
 
 For development, use the modular version in modules/ directory.
 """
@@ -861,6 +861,7 @@ class BackupManager:
             "creationTimestamp",
             "resourceVersion",
             "uid",
+            "generation",
             "ownerReferences",
             "annotations",
             "managedFields",
@@ -1228,6 +1229,11 @@ class NodeConfigurator:
         execute_oc_command=None,
         printer=None,
     ) -> None:
+        # Use global printer if none provided
+        if printer is None:
+            global printer
+            printer = globals()["printer"]
+
         try:
             with open(machine_file_path, "r") as f:
                 machine_data = yaml.safe_load(f)
