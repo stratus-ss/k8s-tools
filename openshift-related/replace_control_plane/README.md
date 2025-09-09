@@ -82,7 +82,11 @@ graph TD
 
 #### Option A: Direct Usage (Recommended)
 ```bash
+<<<<<<< HEAD
 git clone https://github.com/YOUR_USERNAME/k8s-tools.git
+=======
+git clone https://github.com/stratus-ss/k8s-tools.git
+>>>>>>> refactor/code-review-analysis
 cd k8s-tools/openshift-related/replace_control_plane
 ```
 
@@ -274,7 +278,7 @@ re_enable_quorum_guard_after_expansion(dependencies)       # Post-expansion safe
 ### Setup Development Environment
 ```bash
 # Clone repository
-git clone https://github.com/YOUR_USERNAME/k8s-tools.git
+git clone https://github.com/stratus-ss/k8s-tools.git
 cd k8s-tools/openshift-related/replace_control_plane
 
 # Method 1: Use Make (Recommended)
@@ -459,7 +463,11 @@ pip install dist/openshift_control_plane_replacement-1.0.0-py3-none-any.whl
 ## 📄 License & Contributing
 
 ### License
+<<<<<<< HEAD
 This project is licensed under the **GPL-3.0 License** - see the [LICENSE](LICENSE) file for details.
+=======
+This project is licensed under the **GPL-3.0 License** - see the [LICENSE](https://github.com/stratus-ss/k8s-tools/blob/main/LICENSE) file for details.
+>>>>>>> refactor/code-review-analysis
 
 ### Contributing Guidelines
 

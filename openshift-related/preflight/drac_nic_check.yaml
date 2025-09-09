@@ -1,0 +1,56 @@
+---
+- name: Check DRACS
+  hosts: drac_hosts
+  vars:
+    ansible_user: "{{ idrac_username }}"
+    ansible_password: "{{ idrac_password }}"
+    ansible_network_os: none
+    ansible_become: no
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+  tasks:
+    - name: Execute racadm hwinventory NIC
+      raw: racadm hwinventory NIC
+      register: nic_inventory
+
+    - debug:
+        msg: "MAC: {{ hostvars[inventory_hostname]['bmc_mac'] }}"
+      when:
+        - hostvars[inventory_hostname]['bmc_mac'] is defined
+
+    - name: Find matching NIC slot for each worker
+      set_fact:
+        matching_nic_temp: "{{ nic_inventory.stdout_lines | select('search', hostvars[inventory_hostname]['bmc_mac']) | regex_search('NIC\\.(.*?)\\:', '\\1') | first }}"
+      when:
+        - nic_inventory.stdout_lines is defined
+        - hostvars[inventory_hostname]['bmc_mac'] is defined
+
+    - name: Execute racadm hwinventory NIC with slot
+      raw: "racadm hwinventory NIC.{{ matching_nic_temp }}"
+      register: nic_detail
+      when:
+        - matching_nic_temp is defined
+
+    - debug:
+        msg: "Detailed NIC INFO: {{ nic_detail.stdout_lines }}"
+      when:
+        - nic_detail is defined and nic_detail.stdout is defined
+
+    - name: Simple check for Full Duplex
+      set_fact:
+        is_full_duplex: "{{ (nic_detail.stdout is defined) and ('Full Duplex' in nic_detail.stdout) }}"
+      ignore_errors: yes
+
+    - name: Display duplex status
+      debug:
+        msg: "NIC is running in Full Duplex mode"
+      when: is_full_duplex | default(false)
+
+    - name: Print error for NIC not running in Full Duplex mode
+      debug:
+        msg: "ERROR: NIC {{ matching_nic_temp }} is NOT running in Full Duplex mode!"
+      when: not is_full_duplex | default(false)
+
+    - name: Fail when NIC is not in Full Duplex mode or NIC not found
+      fail:
+        msg: "Critical Error: NIC {{ matching_nic_temp }} must operate in Full Duplex mode or wasn't found: {{ inventory_hostname }}"
+      when: not is_full_duplex | default(false)
