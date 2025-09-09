@@ -35,7 +35,7 @@ A comprehensive automation solution for OpenShift cluster node management, suppo
 ### 🏗️ Architecture Options
 - **Monolithic Script** - Single-file deployment (`replace_control_plane.py`)
 - **Modular Architecture** - Maintainable component structure (`replace_control_plane_modular.py`)
-- **Professional Testing** - Comprehensive pytest suite with 26 tests and 100% coverage
+- **Professional Testing** - Comprehensive pytest suite with 229 tests and 60% coverage
 
 ## 🏗️ Architecture Overview
 
@@ -231,14 +231,14 @@ The tool is built with a modular architecture supporting both monolithic and com
 
 | Module | Lines | Purpose | Key Functions |
 |--------|-------|---------|---------------|
-| **orchestrator.py** | 533 | Workflow orchestration | `NodeOperationOrchestrator` class |
-| **utilities.py** | 914 | Core utility functions | `execute_oc_command`, `find_node`, retry logic |
-| **resource_monitor.py** | 418 | 4-phase provisioning monitoring | `ResourceMonitor` class |
-| **backup_manager.py** | 390 | Resource backup operations | `BackupManager` class |
-| **etcd_manager.py** | 273 | ETCD cluster management | Member removal, quorum guard |
-| **node_configurator.py** | 262 | Node configuration | YAML templating and updates |
-| **configuration_manager.py** | 249 | Template management | Configuration generation |
-| **resource_manager.py** | 232 | Resource operations | Backup, removal, application |
+| **utilities.py** | 1022 | Core utility functions | `execute_oc_command`, `find_node`, retry logic |
+| **resource_manager.py** | 793 | Resource operations | Backup, removal, application |
+| **orchestrator.py** | 639 | Workflow orchestration | `NodeOperationOrchestrator` class |
+| **etcd_manager.py** | 475 | ETCD cluster management | Member removal, quorum guard |
+| **resource_monitor.py** | 456 | 4-phase provisioning monitoring | `ResourceMonitor` class |
+| **node_configurator.py** | 408 | Node configuration | YAML templating and updates |
+| **backup_manager.py** | 398 | Resource backup operations | `BackupManager` class |
+| **configuration_manager.py** | 313 | Template management | Configuration generation |
 | **arguments_parser.py** | 91 | CLI argument parsing | `ArgumentsParser` class |
 | **print_manager.py** | 51 | Output formatting | Progress reporting |
 
@@ -303,7 +303,7 @@ make clean-all          # Remove everything including venv
 
 ### Testing
 ```bash
-# Comprehensive test suite (26 tests, 100% coverage)
+# Comprehensive test suite (229 tests, 60% coverage)
 make test
 pytest tests/ --cov=modules --cov-report=html
 
