@@ -20,42 +20,28 @@ from modules.orchestrator import (  # noqa: E402
     handle_provisioning_failure,
 )  # noqa: E402
 
-
-# =============================================================================
-# Test Fixtures
-# =============================================================================
+# Test Configuration Constants
+KUBECONFIG_PATH = "/home/stratus/temp/kubeconfig"
 
 
 @pytest.fixture
-def kubeconfig_path():
-    """Path to kubeconfig for testing"""
-    return "/home/stratus/temp/kubeconfig"
-
-
-@pytest.fixture
-def mock_printer():
-    """Simple mock printer - not testing printer functionality"""
-    return Mock()
-
-
-@pytest.fixture
-def mock_execute_oc_command():
-    """Mock function for executing OpenShift CLI commands"""
+def mock_execute_oc_command(sample_machines_data):
+    """Mock function for executing OpenShift CLI commands.
+    
+    NOTE: This fixture overrides the basic conftest.py version to provide
+    orchestrator-specific behavior for machine data queries. The custom logic
+    returns sample_machines_data fixture for machine-related commands.
+    """
 
     def _mock_execute_oc(cmd, **kwargs):
         # Return different responses based on command
         if "get" in cmd and "machines" in cmd:
-            return sample_machines_data()
+            return sample_machines_data
         return {"success": True}
 
     mock_func = Mock(side_effect=_mock_execute_oc)
     return mock_func
 
-
-@pytest.fixture
-def mock_format_runtime():
-    """Mock function for formatting runtime duration"""
-    return Mock(return_value="5m 30s")
 
 
 @pytest.fixture
@@ -195,33 +181,27 @@ def sample_args():
     )
 
 
-def sample_machines_data():
-    """Sample machines data for testing"""
+@pytest.fixture
+def sample_machines_data(machine_factory):
+    """Sample machines data for testing using machine_factory.
+    
+    Uses the established machine_factory from conftest.py to generate 
+    consistent Machine resources following enterprise factory patterns.
+    Returns List structure expected by orchestrator mock commands.
+    """
+    test_machine = machine_factory(
+        machine_name="test-master-0",
+        cluster_name="test-cluster", 
+        machine_role="master",
+        include_cluster_labels=True,
+        include_spec_metadata=True
+    )
+    
     return {
         "apiVersion": "v1",
         "kind": "List",
-        "items": [
-            {
-                "apiVersion": "machine.openshift.io/v1beta1",
-                "kind": "Machine",
-                "metadata": {
-                    "name": "test-master-0",
-                    "namespace": "openshift-machine-api",
-                    "labels": {
-                        "machine.openshift.io/cluster-api-machine-role": "master",
-                        "machine.openshift.io/cluster-api-machine-type": "master",
-                    },
-                },
-                "spec": {"metadata": {"labels": {"node-role.kubernetes.io/control-plane": ""}}},
-            }
-        ],
+        "items": [test_machine]
     }
-
-
-# =============================================================================
-# Tests for NodeOperationOrchestrator Class
-# =============================================================================
-
 
 class TestNodeOperationOrchestrator:
     """Test cases for NodeOperationOrchestrator class"""
@@ -321,9 +301,15 @@ class TestMacConflictHandling:
         total_steps = orchestrator._handle_existing_mac_conflict("52:54:00:12:34:56", 10)
 
         assert total_steps == 13
-        # Should still cordon and drain the node
-        orchestrator.cordon_node.assert_called_once()
-        orchestrator.drain_node.assert_called_once()
+        
+        # Verify workflow sequence: cordon -> drain -> cleanup
+        orchestrator.cordon_node.assert_called_once_with("existing-node", printer=orchestrator.printer)
+        orchestrator.drain_node.assert_called_once_with("existing-node", printer=orchestrator.printer)
+        
+        # Verify cleanup operations were called for the case without machine
+        orchestrator.delete_bmh.assert_called_once_with("existing-bmh", printer=orchestrator.printer)
+        # Should NOT delete machine since machine_name is None
+        orchestrator.delete_machine.assert_not_called()
 
 
 class TestMachinesetScaling:
@@ -349,7 +335,10 @@ class TestMachinesetScaling:
 
         orchestrator._handle_machineset_scaling("test-machine")
 
-        # Verification that the method completes without errors
+        # Verify method completes successfully and finds no machineset
+        orchestrator.find_machineset_for_machine.assert_called_once_with(
+            "test-machine", printer=orchestrator.printer
+        )
 
     def test_handle_machineset_scaling_annotation_failure(self, orchestrator):
         """Test when annotation fails but scaling continues"""
@@ -391,6 +380,11 @@ class TestResourceDeletion:
         orchestrator._delete_existing_resources("test-machine", "test-bmh")
 
         # Verify deletion methods were called even though they failed
+        orchestrator.delete_machine.assert_called_once_with("test-machine", printer=orchestrator.printer)
+        orchestrator.delete_bmh.assert_called_once_with("test-bmh", printer=orchestrator.printer)
+        orchestrator.verify_resources_deleted.assert_called_once_with(
+            machine_name="test-machine", bmh_name="test-bmh", printer=orchestrator.printer
+        )
 
 
 class TestTemplateConfiguration:
@@ -507,7 +501,7 @@ class TestConfigurationFiles:
             backup_manager.copy_files_for_replacement.return_value = return_value
         return backup_manager
 
-    def test_create_configuration_files_addition(self, orchestrator, sample_args):
+    def test_create_configuration_files_addition(self, orchestrator):
         """Test creating configuration files for worker addition"""
         backup_manager = self._create_mock_backup_manager_for_config()
         operation_params = {"replacement_node": "new-worker-1"}
@@ -519,7 +513,7 @@ class TestConfigurationFiles:
         assert result is not None
         orchestrator.create_new_node_configs.assert_called_once()
 
-    def test_create_configuration_files_replacement(self, orchestrator, sample_args):
+    def test_create_configuration_files_replacement(self, orchestrator):
         """Test creating configuration files for control plane replacement"""
         backup_manager = self._create_mock_backup_manager_for_config(
             {"bmh_file": "/tmp/bmh.yaml", "machine_file": "/tmp/machine.yaml"}
@@ -541,7 +535,7 @@ class TestConfigurationFiles:
         # Should call create_new_node_configs instead of copy_files_for_replacement
         orchestrator.create_new_node_configs.assert_called_once()
 
-    def test_create_configuration_files_no_failed_node(self, orchestrator, sample_args):
+    def test_create_configuration_files_no_failed_node(self, orchestrator):
         """Test when failed node is not provided for replacement"""
         backup_manager = self._create_mock_backup_manager_for_config()
         operation_params = {"replacement_node": "new-control-1"}
@@ -717,10 +711,10 @@ class TestIntegration:
     """Integration tests that verify end-to-end workflows"""
 
     @patch("time.time", side_effect=[1000.0, 1100.0, 1200.0, 1300.0])
-    def test_full_worker_addition_workflow(self, mock_time, orchestrator, sample_args, kubeconfig_path):
+    def test_full_worker_addition_workflow(self, mock_time, orchestrator, sample_args):
         """Test complete end-to-end worker addition workflow"""
         # Set up environment
-        os.environ["KUBECONFIG"] = kubeconfig_path
+        os.environ["KUBECONFIG"] = KUBECONFIG_PATH
 
         # Execute the full workflow
         orchestrator.process_node_operation(sample_args, is_addition=True, is_expansion=False)
@@ -731,10 +725,10 @@ class TestIntegration:
         orchestrator.handle_successful_completion.assert_called_once()
 
     @patch("time.time", side_effect=[1000.0, 1100.0, 1200.0, 1300.0, 1400.0])
-    def test_full_expansion_workflow_with_quorum_guard(self, mock_time, orchestrator, sample_args, kubeconfig_path):
+    def test_full_expansion_workflow_with_quorum_guard(self, mock_time, orchestrator, sample_args):
         """Test complete control plane expansion including quorum guard operations"""
         # Set up environment
-        os.environ["KUBECONFIG"] = kubeconfig_path
+        os.environ["KUBECONFIG"] = KUBECONFIG_PATH
 
         # Execute the expansion workflow
         orchestrator.process_node_operation(sample_args, is_addition=False, is_expansion=True)
@@ -749,10 +743,10 @@ class TestIntegration:
         )
 
     @patch("time.time", side_effect=[1000.0, 1100.0, 1200.0, 1300.0, 1400.0, 1500.0])
-    def test_full_replacement_workflow_with_cleanup(self, mock_time, orchestrator, sample_args, kubeconfig_path):
+    def test_full_replacement_workflow_with_cleanup(self, mock_time, orchestrator, sample_args):
         """Test complete control plane replacement with existing node cleanup"""
         # Set up environment
-        os.environ["KUBECONFIG"] = kubeconfig_path
+        os.environ["KUBECONFIG"] = KUBECONFIG_PATH
 
         # Set up existing node conflict
         existing_bmh_info = {

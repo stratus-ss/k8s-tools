@@ -689,126 +689,65 @@ def network_config_scenarios(request, secret_factory):
 
 
 @pytest.fixture
-def sample_bmh_data() -> Dict[str, Any]:
-    """Real BareMetalHost data from OpenShift cluster.
+def sample_bmh_data(bmh_factory) -> Dict[str, Any]:
+    """Real BareMetalHost data from OpenShift cluster - factory-generated.
 
     Returns:
-        Dict[str, Any]: Dictionary containing realistic BMH data from a production
-            OpenShift cluster, including all essential fields for testing backup operations.
+        Dict[str, Any]: Dictionary containing realistic BMH data using bmh_factory
+            including all essential fields for testing backup operations.
     """
-    return {
-        "apiVersion": "metal3.io/v1alpha1",
-        "kind": "BareMetalHost",
-        "metadata": {
-            "creationTimestamp": "2025-08-26T13:41:57Z",
-            "finalizers": ["baremetalhost.metal3.io"],
-            "generation": 3,
-            "labels": {"installer.openshift.io/role": "control-plane"},
-            "name": "ocp-control2.two.ocp4.example.com",
-            "namespace": "openshift-machine-api",
-            "resourceVersion": "309046",
-            "uid": "86aefc1b-5d63-47b0-9cf8-92db6de8ee0e",
-        },
-        "spec": {
-            "architecture": "x86_64",
-            "automatedCleaningMode": "metadata",
-            "bmc": {
-                "address": "redfish-virtualmedia+http://192.168.94.1:8000/redfish/v1/Systems/8e74843e-9f5b-4b3b-b818-9bb09d881c94",
-                "credentialsName": "ocp-control2.two.ocp4.example.com-bmc-secret",
-            },
-            "bootMACAddress": "52:54:00:e9:d5:8a",
-            "bootMode": "UEFI",
-            "consumerRef": {
-                "apiVersion": "machine.openshift.io/v1beta1",
-                "kind": "Machine",
-                "name": "two-xkb99-master-1",
-                "namespace": "openshift-machine-api",
-            },
-            "customDeploy": {"method": "install_coreos"},
-            "hardwareProfile": "unknown",
-            "online": True,
-            "preprovisioningNetworkDataName": "ocp-control2.two.ocp4.example.com-network-config-secret",
-            "rootDeviceHints": {"deviceName": "/dev/vda"},
-            "userData": {"name": "master-user-data-managed", "namespace": "openshift-machine-api"},
-        },
-        "status": {"provisioning": {"state": "provisioned"}, "poweredOn": True},
-    }
+    return bmh_factory(
+        node_name="ocp-control2.two.ocp4.example.com",
+        bmc_address="redfish-virtualmedia+http://192.168.94.1:8000/redfish/v1/Systems/8e74843e-9f5b-4b3b-b818-9bb09d881c94",
+        bmc_credentials_name="ocp-control2.two.ocp4.example.com-bmc-secret",
+        boot_mac_address="52:54:00:e9:d5:8a",
+        labels={"installer.openshift.io/role": "control-plane"},
+        architecture="x86_64",
+        automated_cleaning_mode="metadata",
+        boot_mode="UEFI",
+        online=True,
+        network_config_name="ocp-control2.two.ocp4.example.com-network-config-secret",
+        root_device_hints={"deviceName": "/dev/vda"},
+        user_data_name="master-user-data-managed"
+    )
 
 
 @pytest.fixture
-def sample_machine_data() -> Dict[str, Any]:
-    """Real Machine data from OpenShift cluster.
+def sample_machine_data(machine_factory) -> Dict[str, Any]:
+    """Real Machine data from OpenShift cluster - now factory-generated.
 
     Returns:
-        Dict[str, Any]: Dictionary containing realistic Machine resource data from
-            a production OpenShift cluster with all required metadata and specifications.
+        Dict[str, Any]: Dictionary containing realistic Machine resource data using machine_factory
+            including all required metadata and specifications.
     """
-    return {
-        "apiVersion": "machine.openshift.io/v1beta1",
-        "kind": "Machine",
-        "metadata": {
-            "creationTimestamp": "2025-08-26T13:41:57Z",
-            "finalizers": ["machine.machine.openshift.io"],
-            "generation": 1,
-            "labels": {
-                "machine.openshift.io/cluster-api-cluster": "two-xkb99",
-                "machine.openshift.io/cluster-api-machine-role": "master",
-                "machine.openshift.io/cluster-api-machine-type": "master",
-            },
-            "name": "two-xkb99-master-1",
-            "namespace": "openshift-machine-api",
-            "ownerReferences": [
-                {
-                    "apiVersion": "machine.openshift.io/v1beta1",
-                    "blockOwnerDeletion": True,
-                    "controller": True,
-                    "kind": "MachineSet",
-                    "name": "two-xkb99-master",
-                    "uid": "12345678-1234-1234-1234-123456789abc",
-                }
-            ],
-            "resourceVersion": "309047",
-            "uid": "abcdef12-3456-7890-abcd-ef1234567890",
-        },
-        "spec": {
-            "lifecycleHooks": {},
-            "metadata": {"labels": {"node-role.kubernetes.io/control-plane": "", "node-role.kubernetes.io/master": ""}},
-            "providerSpec": {
-                "value": {
-                    "apiVersion": "machine.openshift.io/v1beta1",
-                    "kind": "BareMetalMachineProviderSpec",
-                    "hostSelector": {"matchLabels": {"installer.openshift.io/role": "control-plane"}},
-                }
-            },
-            "taints": [{"effect": "NoSchedule", "key": "node-role.kubernetes.io/master"}],
-        },
-        "status": {"phase": "Running"},
-    }
+    return machine_factory(
+        machine_name="two-xkb99-master-1",
+        cluster_name="two-xkb99",
+        include_cluster_labels=True,
+        machine_role="master",
+        include_spec_metadata=True,
+        include_user_data=False,
+        include_full_provider_spec=False
+    )
 
 
 @pytest.fixture
-def sample_bmc_secret_data() -> Dict[str, Any]:
-    """Real Secret data from OpenShift cluster.
+def sample_bmc_secret_data(secret_factory) -> Dict[str, Any]:
+    """Real Secret data from OpenShift cluster - factory-generated.
     
     Returns:
-        Dict[str, Any]: Dictionary containing realistic BMC Secret data from a production
-            OpenShift cluster with base64-encoded credentials for testing backup operations.
+        Dict[str, Any]: Dictionary containing realistic BMC Secret data using secret_factory
+            including base64-encoded credentials for testing backup operations.
     """
-    return {
-        "apiVersion": "v1",
-        "kind": "Secret",
-        "metadata": {
-            "creationTimestamp": "2025-08-26T13:41:57Z",
-            "name": "ocp-control2.two.ocp4.example.com-bmc-secret",
-            "namespace": "openshift-machine-api",
-            "resourceVersion": "309048",
-        },
-        "data": {
+    return secret_factory(
+        secret_name="ocp-control2.two.ocp4.example.com-bmc-secret",
+        secret_type="Opaque",
+        namespace="openshift-machine-api",
+        data_keys={
             "password": "dGVzdC1wYXNzd29yZA==",  # base64 encoded "test-password"
             "username": "dGVzdC11c2VyZXI=",  # base64 encoded "test-userer"
-        },
-        "type": "Opaque",
-    }
+        }
+    )
 
 
 # =============================================================================
@@ -1164,6 +1103,7 @@ def machine_factory():
                 "labels": labels
             },
             "spec": {
+                "lifecycleHooks": {},
                 "providerSpec": {
                     "value": provider_spec_value
                 }
@@ -1288,6 +1228,110 @@ def secret_factory():
             
         return secret
     return _create_secret
+
+
+@pytest.fixture 
+def nmstate_factory():
+    """Factory for creating nmstate configuration data.
+    
+    Creates nmstate YAML configuration data for network interface testing,
+    with support for common scenarios like static IP, DHCP, and multi-interface setups.
+    
+    Args:
+        interface_name (str): Network interface name (default: "eno1")
+        ip_address (str): Static IP address (optional, enables static config)  
+        prefix_length (int): Network prefix length (default: 24)
+        enabled (bool): Whether interface is enabled (default: True)
+        interface_type (str): Interface type (default: "ethernet")
+        additional_interfaces (List[Dict]): Additional interfaces to configure
+        dns_config (Dict): DNS configuration (optional)
+        routes (List[Dict]): Static routes (optional)
+        
+    Returns:
+        Dict: nmstate configuration structure ready for YAML serialization
+        
+    Example:
+        # Basic static IP configuration
+        nmstate_data = nmstate_factory(
+            interface_name="eno1",
+            ip_address="192.168.1.100", 
+            prefix_length=24
+        )
+        
+        # DHCP configuration  
+        nmstate_data = nmstate_factory(
+            interface_name="eno1"
+        )
+        
+        # Multi-interface setup
+        nmstate_data = nmstate_factory(
+            interface_name="eno1",
+            ip_address="192.168.1.100",
+            additional_interfaces=[
+                {"name": "eno2", "type": "ethernet", "state": "up"}
+            ]
+        )
+    """
+    def _create_nmstate(
+        interface_name: str = "eno1",
+        ip_address: str = None,
+        prefix_length: int = 24, 
+        enabled: bool = True,
+        interface_type: str = "ethernet",
+        additional_interfaces: list = None,
+        dns_config: dict = None,
+        routes: list = None
+    ) -> dict:
+        """Create nmstate configuration data."""
+        
+        # Base interface configuration
+        interface_config = {
+            "name": interface_name,
+            "type": interface_type,
+            "state": "up" if enabled else "down"
+        }
+        
+        # Add IP configuration
+        if ip_address:
+            # Static IP configuration
+            interface_config["ipv4"] = {
+                "enabled": True,
+                "address": [
+                    {
+                        "ip": ip_address,
+                        "prefix-length": prefix_length
+                    }
+                ]
+            }
+        else:
+            # DHCP configuration (default)
+            interface_config["ipv4"] = {
+                "enabled": enabled,
+                "dhcp": True
+            }
+        
+        # Build complete nmstate structure
+        nmstate_config = {
+            "interfaces": [interface_config]
+        }
+        
+        # Add additional interfaces if provided
+        if additional_interfaces:
+            nmstate_config["interfaces"].extend(additional_interfaces)
+        
+        # Add DNS configuration if provided
+        if dns_config:
+            nmstate_config["dns-resolver"] = dns_config
+            
+        # Add routes if provided
+        if routes:
+            nmstate_config["routes"] = {
+                "config": routes
+            }
+        
+        return nmstate_config
+    
+    return _create_nmstate
 
 
 @pytest.fixture
