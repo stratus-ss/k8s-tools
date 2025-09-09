@@ -2,3 +2,10 @@
 # MCP Server Configuration (sensitive)
 MCP_SERVER_CONFIGURATION_GUIDE.md
 mcp-server/
+
+# Documentation files (except README)
+openshift-related/replace_control_plane/*.md
+!openshift-related/replace_control_plane/README.md
+openshift-related/replace_control_plane/tests/Docs/
+openshift-related/replace_control_plane/tests/*.md
+!openshift-related/replace_control_plane/tests/README.md
