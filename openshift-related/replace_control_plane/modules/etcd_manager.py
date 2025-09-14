@@ -215,6 +215,7 @@ def _disable_quorum_guard(execute_oc_command: Callable[..., Any], printer: Print
 
     printer.print_success("Quorum guard disabled")
 
+
 def _enable_quorum_guard(execute_oc_command: Callable[..., Any], printer: PrintManager) -> None:
     """Re-enables the ETCD quorum guard by patching the etcd/cluster resource to
     remove the unsafe non-HA configuration override. Waits 60 seconds for the

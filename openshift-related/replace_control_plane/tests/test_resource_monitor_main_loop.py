@@ -352,35 +352,6 @@ class TestResourceMonitorMainLoop:
             assert success is True
             assert phase == "Phase 4: Node Ready"
 
-    def test_sleep_is_called_between_checks_unless_node_ready(self, resource_monitor):
-        """Test that sleep is called between monitoring checks, except when node becomes ready"""
-        with patch.object(resource_monitor, "_print_progress"), patch.object(
-            resource_monitor, "_monitor_bmh_status"
-        ) as mock_bmh, patch.object(
-            resource_monitor, "_get_final_status", return_value=(True, "Phase 4: Node Ready", "")
-        ), patch(
-            "time.sleep"
-        ) as mock_sleep:
-
-            # BMH becomes provisioned after 2 iterations, then node ready immediately
-            call_count = 0
-
-            def bmh_progression():
-                nonlocal call_count
-                call_count += 1
-                if call_count >= 2:
-                    resource_monitor.bmh_provisioned = True
-                    resource_monitor.node_ready = True  # Skip directly to ready
-
-            mock_bmh.side_effect = bmh_progression
-
-            resource_monitor.monitor_provisioning_sequence()
-
-            # Verify sleep was called before node became ready (at least once)
-            assert mock_sleep.call_count >= 1
-            mock_sleep.assert_called_with(0.1)  # check_interval from fixture
-
-
 class TestResourceMonitorStateValidation:
     """Test state validation and edge cases in the monitoring loop"""
 

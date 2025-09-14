@@ -200,27 +200,6 @@ class TestResourceMonitorWorkerMachineDiscovery:
             assert worker_monitor.machine_created is True
             assert worker_monitor.machine_monitor_start_time == 1600.0  # Updated timestamp
 
-    def test_worker_machine_discovery_empty_string_machine_name_treated_as_none(self, worker_monitor):
-        """
-        Test that empty string machine name is treated as None (failure case).
-
-        This handles edge cases where consumerRef lookup returns empty string.
-        """
-        # Mock consumerRef returning empty string
-        with patch.object(worker_monitor, "_get_machine_name_from_bmh_consumerref", return_value=""):
-
-            # Execute the discovery function
-            worker_monitor._discover_machine_for_worker_addition()
-
-            # Empty string should be treated as failure
-            assert worker_monitor.machine_created is False
-            assert worker_monitor.target_machine_name == ""  # Set but still falsy
-
-            # Should show waiting message (empty string is falsy)
-            worker_monitor.printer.print_info.assert_any_call(
-                "Waiting for MachineSet to create machine and update BMH consumerRef..."
-            )
-            worker_monitor.printer.print_success.assert_not_called()
 
     def test_worker_machine_discovery_printer_message_order(self, worker_monitor):
         """

@@ -238,8 +238,9 @@ class NodeConfigurator:
         # Use global printer if none provided
         if printer is None:
             from .print_manager import printer as global_printer
+
             printer = global_printer
-            
+
         try:
             with open(machine_file_path, "r") as f:
                 machine_data = yaml.safe_load(f)
