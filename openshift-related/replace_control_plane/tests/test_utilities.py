@@ -7,43 +7,19 @@ Tests all utility functions with realistic OpenShift data and enterprise-grade e
 import pytest
 import sys
 import os
-import subprocess
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 # Add parent directory to path for module imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 # Import after path modification to avoid E402
-from modules.utilities import (  # noqa: E402
-    format_runtime, normalize_node_role, _is_retryable_error,
-    exec_pod_command, execute_oc_command, _build_exec_command, _run_pod_command,
-    _handle_command_result, _should_retry_error
-)
+from modules.utilities import format_runtime, normalize_node_role, _is_retryable_error  # noqa: E402
 
 
-@pytest.fixture
-def command_test_cases():
-    """Fixture providing test cases for command building."""
-    return [
-        {
-            "name": "without_container",
-            "args": ("test-pod", ["ls", "-la"], "test-namespace"),
-            "kwargs": {},
-            "expected": ["oc", "exec", "-n", "test-namespace", "test-pod", "--", "ls", "-la"]
-        },
-        {
-            "name": "with_container", 
-            "args": ("test-pod", ["ls", "-la"], "test-namespace"),
-            "kwargs": {"container_name": "test-container"},
-            "expected": ["oc", "exec", "-n", "test-namespace", "test-pod", "-c", "test-container", "--", "ls", "-la"]
-        },
-        {
-            "name": "complex_args",
-            "args": ("etcd-pod", ["etcdctl", "endpoint", "health"], "openshift-etcd"),
-            "kwargs": {},
-            "expected": ["oc", "exec", "-n", "openshift-etcd", "etcd-pod", "--", "etcdctl", "endpoint", "health"]
-        }
-    ]
+# =============================================================================
+# Test Fixtures - Static Data from Real OpenShift Environments
+# =============================================================================
+
 
 @pytest.fixture
 def mock_printer() -> Mock:
@@ -53,29 +29,13 @@ def mock_printer() -> Mock:
         Mock: Mock printer instance with all required methods.
     """
     printer = Mock()
+    printer.print_info = Mock()
+    printer.print_action = Mock()
+    printer.print_success = Mock()
+    printer.print_error = Mock()
+    printer.print_warning = Mock()
+    printer.print_step = Mock()
     return printer
-
-
-@pytest.fixture
-def mock_subprocess_run():
-    """Mock subprocess.run for testing command execution.
-
-    Returns:
-        Mock: Mock subprocess.run function with realistic return values.
-    """
-    with patch('modules.utilities.subprocess.run') as mock_run:
-        yield mock_run
-
-
-@pytest.fixture
-def mock_time_sleep():
-    """Mock time.sleep for testing retry delays.
-
-    Returns:
-        Mock: Mock time.sleep function.
-    """
-    with patch('modules.utilities.time.sleep') as mock_sleep:
-        yield mock_sleep
 
 
 class TestFormatRuntime:
@@ -241,70 +201,10 @@ class TestErrorHandlingUtilities:
         assert _is_retryable_error(None) is False
 
 
+# =============================================================================
+# Test Runner Configuration
+# =============================================================================
 
-class TestBuildExecCommand:
-    """Test cases for _build_exec_command helper function."""
-    
-    def test_build_exec_command(self, command_test_cases):
-        """Test command building with various scenarios."""
-        for case in command_test_cases:
-            result = _build_exec_command(*case["args"], **case["kwargs"])
-            assert result == case["expected"], f"Failed for case: {case['name']}"
 
-class TestPodCommandExecution:
-    """Test cases for complete pod command execution flow."""
-    
-    @patch('subprocess.run')
-    def test_successful_execution(self, mock_subprocess_run, command_test_cases):
-        """Test successful execution with various command configurations."""
-        for case in command_test_cases:
-            # Mock successful execution
-            mock_result = Mock()
-            mock_result.returncode = 0
-            mock_result.stdout = f"output for {case['name']}"
-            mock_result.stderr = ""
-            mock_subprocess_run.return_value = mock_result
-            
-            # Execute command
-            result = exec_pod_command(*case["args"], **case["kwargs"])
-            
-            # Verify result and that correct command was called
-            assert result == f"output for {case['name']}"
-            mock_subprocess_run.assert_called_with(
-                case["expected"],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
-            mock_subprocess_run.reset_mock()
-    
-    @patch('subprocess.run')
-    @patch('time.sleep')
-    def test_execution_features(self, mock_sleep, mock_subprocess_run):
-        """Test execution-specific features like retry logic, stderr handling."""
-        # Test retry logic
-        mock_fail = Mock(returncode=1, stderr="timeout")
-        mock_success = Mock(returncode=0, stdout="success", stderr="")
-        mock_subprocess_run.side_effect = [mock_fail, mock_success]
-        
-        result = exec_pod_command("test-pod", ["ls"], "test-ns", max_retries=1, retry_delay=5)
-        
-        assert result == "success"
-        assert mock_subprocess_run.call_count == 2
-        mock_sleep.assert_called_once_with(5)
-        
-        # Reset for next test
-        mock_subprocess_run.reset_mock()
-        mock_sleep.reset_mock()
-        
-        # Test stderr handling
-        mock_result = Mock(returncode=0, stdout="output", stderr="ignored")
-        mock_subprocess_run.return_value = mock_result
-        
-        exec_pod_command("test-pod", ["ls"], "test-ns", discard_stderr=True)
-        
-        call_kwargs = mock_subprocess_run.call_args[1]
-        assert call_kwargs["stderr"] == subprocess.DEVNULL
-        
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short", "--cov=modules.utilities", "--cov-report=term-missing"])

@@ -1,0 +1,36 @@
+# Kubernetes MCP Server Configuration
+# This configuration is tailored for your rhel8-k8s.stratus.lab cluster
+
+mcp-server:
+  # Server configuration
+  port: 3001
+  host: "0.0.0.0"
+  
+  # Kubernetes cluster configuration
+  cluster:
+    name: "rhel8-k8s.stratus.lab"
+    api_endpoint: "https://192.168.99.45:6443"
+    
+  # Logging configuration  
+  logging:
+    level: 4  # kubectl compatible logging levels (0-9)
+    format: "json"
+    
+  # Security settings
+  security:
+    read_only: false  # Set to true for read-only access
+    disable_destructive: false  # Set to true to prevent delete/update operations
+    
+  # Output formatting
+  output:
+    list_format: "table"  # Options: "yaml", "table"
+    
+  # Resource access patterns
+  resources:
+    default_namespace: "default"
+    watch_timeout: "300s"
+    
+  # Integration with existing tools
+  integration:
+    etcd_backup_tool: true
+    openshift_compatibility: true

@@ -11,7 +11,7 @@ import sys
 # Add parent directory to path for module imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from unittest.mock import Mock, patch, mock_open  # noqa: E402
+from unittest.mock import Mock, patch, mock_open, call  # noqa: E402
 from modules.configuration_manager import (  # noqa: E402
     _find_machine_template,
     _extract_and_copy_secrets,
@@ -34,7 +34,7 @@ def sample_control_plane_machines_data(machine_factory):
         include_cluster_labels=True,
         machine_role="master",
         include_spec_metadata=True,
-        include_user_data=False,
+        include_user_data=False
     )
     machine2 = machine_factory(
         machine_name="two-xkb99-master-1",
@@ -42,9 +42,13 @@ def sample_control_plane_machines_data(machine_factory):
         include_cluster_labels=True,
         machine_role="master",
         include_spec_metadata=True,
-        include_user_data=False,
+        include_user_data=False
     )
-    return {"apiVersion": "v1", "kind": "List", "items": [machine1, machine2]}
+    return {
+        "apiVersion": "v1",
+        "kind": "List",
+        "items": [machine1, machine2]
+    }
 
 
 @pytest.fixture
@@ -56,17 +60,21 @@ def sample_mixed_machines_data(machine_factory):
         include_cluster_labels=True,
         machine_role="master",
         include_spec_metadata=True,
-        include_user_data=False,
+        include_user_data=False
     )
     worker_machine = machine_factory(
         machine_name="two-xkb99-worker-abc12",
-        cluster_name="two-xkb99",
+        cluster_name="two-xkb99", 
         include_cluster_labels=True,
         machine_role="worker",
         include_spec_metadata=True,
-        include_user_data=False,
+        include_user_data=False
     )
-    return {"apiVersion": "v1", "kind": "List", "items": [master_machine, worker_machine]}
+    return {
+        "apiVersion": "v1",
+        "kind": "List",
+        "items": [master_machine, worker_machine]
+    }
 
 
 @pytest.fixture
@@ -77,16 +85,20 @@ def sample_control_plane_nodes_data(node_factory):
         hostname="ocp-control1.two.ocp4.example.com",
         is_control_plane=True,
         ready_status="True",
-        memory_pressure="False",
+        memory_pressure="False"
     )
     node2 = node_factory(
         node_name="ocp-control2.two.ocp4.example.com",
         hostname="ocp-control2.two.ocp4.example.com",
         is_control_plane=True,
         ready_status="False",
-        memory_pressure="False",
+        memory_pressure="False"
     )
-    return {"apiVersion": "v1", "kind": "List", "items": [node1, node2]}
+    return {
+        "apiVersion": "v1",
+        "kind": "List",
+        "items": [node1, node2]
+    }
 
 
 @pytest.fixture
@@ -103,8 +115,15 @@ def sample_bmh_template_data(bmh_factory):
         automated_cleaning_mode="metadata",
         boot_mode="UEFI",
         online=True,
-        root_device_hints={"deviceName": "/dev/vda"},
+        root_device_hints={"deviceName": "/dev/vda"}
     )
+
+
+@pytest.fixture
+def mock_printer():
+    """Mock printer for output testing"""
+    printer = Mock()
+    return printer
 
 
 @pytest.fixture
@@ -121,6 +140,12 @@ def mock_backup_manager():
 
 
 @pytest.fixture
+def mock_execute_oc_command():
+    """Mock oc command execution function"""
+    return Mock()
+
+
+@pytest.fixture
 def mock_node_configurator():
     """Mock NodeConfigurator class"""
     configurator_instance = Mock()
@@ -132,6 +157,12 @@ def mock_node_configurator():
 
     configurator_class = Mock(return_value=configurator_instance)
     return configurator_class
+
+
+# =============================================================================
+# Test _find_machine_template Function
+# =============================================================================
+
 
 class TestFindMachineTemplate:
     """Test the _find_machine_template function"""
@@ -149,13 +180,17 @@ class TestFindMachineTemplate:
         # Create master-only machines data for fallback testing
         machine = machine_factory(
             machine_name="two-xkb99-master-0",
-            cluster_name="two-xkb99",
+            cluster_name="two-xkb99", 
             include_cluster_labels=True,
             machine_role="master",
             include_spec_metadata=False,
-            include_user_data=False,
+            include_user_data=False
         )
-        sample_master_only_machines_data = {"apiVersion": "v1", "kind": "List", "items": [machine]}
+        sample_master_only_machines_data = {
+            "apiVersion": "v1",
+            "kind": "List", 
+            "items": [machine]
+        }
         result = _find_machine_template(sample_master_only_machines_data, is_worker_template=True, printer=mock_printer)
 
         assert result is not None
@@ -163,6 +198,7 @@ class TestFindMachineTemplate:
         # Should modify labels for worker use
         assert result["metadata"]["labels"]["machine.openshift.io/cluster-api-machine-role"] == "worker"
         assert result["metadata"]["labels"]["machine.openshift.io/cluster-api-machine-type"] == "worker"
+
 
     def test_find_master_template(self, sample_control_plane_machines_data, mock_printer):
         """Test finding a master machine template"""
@@ -263,6 +299,7 @@ class TestExtractAndCopySecrets:
 
         # Verify file copy operations
         assert mock_backup_manager.make_file_copy.call_count == 3
+
 
     @patch("modules.configuration_manager.find_node")
     def test_extract_secrets_no_control_plane_data(
@@ -589,7 +626,6 @@ class TestConfigureReplacementNode:
         configurator_instance.update_bmc_secret_name.assert_not_called()
         configurator_instance.update_bmh.assert_not_called()
         configurator_instance.update_machine_yaml.assert_not_called()
-
 
 class TestConfigurationManagerIntegration:
     """Integration tests combining multiple functions"""

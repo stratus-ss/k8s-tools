@@ -8,7 +8,7 @@ to eliminate code duplication and ensure consistent, maintainable test data gene
 
 Factory-Based Testing Approach:
 - Uses secret_factory() for generating ETCD secrets test data
-- Uses pod_factory() for generating ETCD pods test data
+- Uses pod_factory() for generating ETCD pods test data  
 - Uses node_factory() for generating control plane nodes test data
 - Uses mock_format_runtime() for consistent runtime formatting across tests
 - Eliminates 140+ lines of duplicate JSON/YAML hardcoded fixtures
@@ -40,7 +40,6 @@ from modules.etcd_manager import (  # noqa: E402
     handle_etcd_operations_for_replacement,
     re_enable_quorum_guard_after_expansion,
 )
-
 
 @pytest.fixture
 def sample_etcd_endpoint_health():
@@ -117,7 +116,6 @@ def mock_exec_pod_command():
     """Mock pod command execution function"""
     return Mock()
 
-
 class TestGetHealthyEtcdPod:
     """Test the _get_healthy_etcd_pod function"""
 
@@ -130,6 +128,7 @@ class TestGetHealthyEtcdPod:
 
         # Should return the first healthy pod that doesn't contain the failed node
         assert result == "etcd-ocp-control1.two.ocp4.example.com"
+
 
     def test_get_healthy_etcd_pod_exclude_failed_node(
         self, sample_etcd_pods_data, mock_execute_oc_command, mock_printer
@@ -160,8 +159,8 @@ class TestRemoveFailedEtcdMember:
 
         # Mock the exec_pod_command calls
         mock_exec_pod_command.side_effect = [
-            json.dumps(sample_etcd_endpoint_health),
-            json.dumps(sample_etcd_member_list),
+            json.dumps(sample_etcd_endpoint_health), 
+            json.dumps(sample_etcd_member_list),  
             json.dumps(sample_etcd_member_remove_result),
         ]
 
@@ -195,6 +194,7 @@ class TestRemoveFailedEtcdMember:
             ),
         ]
         assert mock_exec_pod_command.call_args_list == expected_calls
+
 
     def test_remove_failed_etcd_member_no_failed_endpoint(
         self, sample_etcd_member_list, mock_exec_pod_command, mock_printer
@@ -248,6 +248,7 @@ class TestRemoveFailedEtcdMember:
 
         assert result is True  # Should return True - member might already be gone
 
+
     def test_remove_failed_etcd_member_ip_match(self, sample_etcd_endpoint_health, mock_exec_pod_command, mock_printer):
         """Test member matching by IP address when exact URL match fails"""
         etcd_pod = "etcd-control1"
@@ -274,8 +275,6 @@ class TestRemoveFailedEtcdMember:
         result = _remove_failed_etcd_member(etcd_pod, mock_exec_pod_command, mock_printer)
 
         assert result is True
-
-
 class TestQuorumGuardFunctions:
     """Test the quorum guard enable/disable functions"""
 
@@ -299,6 +298,7 @@ class TestQuorumGuardFunctions:
             printer=mock_printer,
         )
 
+
     @patch("time.sleep")
     def test_disable_quorum_guard_already_disabled(self, mock_sleep, mock_execute_oc_command, mock_printer):
         """Test disabling ETCD quorum guard when already disabled (unchanged)"""
@@ -319,6 +319,7 @@ class TestQuorumGuardFunctions:
             printer=mock_printer,
         )
 
+
     @patch("time.sleep")
     def test_enable_quorum_guard(self, mock_sleep, mock_execute_oc_command, mock_printer):
         """Test enabling ETCD quorum guard"""
@@ -329,8 +330,6 @@ class TestQuorumGuardFunctions:
             ["patch", "etcd/cluster", "--type=merge", "-p", '{"spec": {"unsupportedConfigOverrides": null}}'],
             printer=mock_printer,
         )
-
-
 class TestCleanupEtcdSecrets:
     """Test the _cleanup_etcd_secrets function"""
 
@@ -385,9 +384,7 @@ class TestCleanupEtcdSecrets:
         # Should use fallback node name
         assert result == failed_node
 
-    def test_cleanup_etcd_secrets_no_secrets(
-        self, sample_etcd_control_plane_nodes, mock_execute_oc_command, mock_printer
-    ):
+    def test_cleanup_etcd_secrets_no_secrets(self, sample_etcd_control_plane_nodes, mock_execute_oc_command, mock_printer):
         """Test cleanup when no secrets found"""
         failed_node = "ocp-control2"
 
@@ -443,6 +440,7 @@ class TestEtcdOperationsFunctions:
         assert success is True
         assert next_step == current_step + 1
 
+
     @patch("modules.etcd_manager._cleanup_etcd_secrets")
     @patch("modules.etcd_manager._disable_quorum_guard")
     @patch("modules.etcd_manager._remove_failed_etcd_member")
@@ -494,7 +492,11 @@ class TestEtcdOperationsFunctions:
         mock_cleanup_etcd_secrets.assert_called_once_with(failed_node, mock_execute_oc_command, mock_printer)
 
         # Verify printer step calls
-        # Note: Step calls verification could be added here if needed
+        expected_step_calls = [
+            call(3, 10, "Processing ETCD cluster recovery"),
+            call(4, 10, "Disabling quorum guard"),
+            call(5, 10, "Cleaning up ETCD secrets"),
+        ]
 
     @patch("modules.etcd_manager._get_healthy_etcd_pod")
     @patch("time.time")
@@ -530,6 +532,7 @@ class TestEtcdOperationsFunctions:
 
         assert result is None
         assert next_step == current_step
+
 
     @patch("modules.etcd_manager._remove_failed_etcd_member")
     @patch("modules.etcd_manager._get_healthy_etcd_pod")
@@ -592,8 +595,6 @@ class TestEtcdOperationsFunctions:
         )
 
         assert next_step == current_step + 1
-
-
 class TestEtcdManagerIntegration:
     """Integration tests combining multiple ETCD manager functions"""
 

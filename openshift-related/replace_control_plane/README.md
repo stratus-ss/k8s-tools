@@ -86,7 +86,6 @@ graph TD
 git clone https://github.com/YOUR_USERNAME/k8s-tools.git
 =======
 git clone https://github.com/stratus-ss/k8s-tools.git
->>>>>>> refactor/code-review-analysis
 cd k8s-tools/openshift-related/replace_control_plane
 ```
 
@@ -463,7 +462,6 @@ pip install dist/openshift_control_plane_replacement-1.0.0-py3-none-any.whl
 ## 📄 License & Contributing
 
 ### License
-
 This project is licensed under the **GPL-3.0 License** - see the [LICENSE](https://github.com/stratus-ss/k8s-tools/blob/main/LICENSE) file for details.
 
 ### Contributing Guidelines

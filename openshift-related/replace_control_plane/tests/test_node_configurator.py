@@ -8,7 +8,7 @@ validating all node configuration operations required for OpenShift node replace
 All tests include proper type annotations, comprehensive error handling, and follow
 SOLID principles for maintainable test code.
 
-Uses factory-based test data generation from conftest.py for consistent and
+Uses factory-based test data generation from conftest.py for consistent and 
 maintainable resource creation across all test scenarios.
 """
 
@@ -22,9 +22,8 @@ import yaml
 # Add parent directory to path for module imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from unittest.mock import patch, mock_open  # noqa: E402
+from unittest.mock import Mock, patch, mock_open  # noqa: E402
 from modules.node_configurator import NodeConfigurator  # noqa: E402
-
 
 @pytest.fixture(scope="function")
 def standard_bmh_data(bmh_factory):
@@ -40,11 +39,9 @@ def standard_bmh_data(bmh_factory):
         online=True,
         network_config_name="ocp-control1.two.ocp4.example.com-network-config-secret",
         root_device_hints={"deviceName": "/dev/vda"},
-        user_data_name="master-user-data-managed",
+        user_data_name="master-user-data-managed"
     )
-
-
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="function")  
 def standard_machine_data(machine_factory):
     """Standard Machine data for node configurator tests - reused across multiple test methods."""
     machine_data = machine_factory(
@@ -53,18 +50,13 @@ def standard_machine_data(machine_factory):
         machine_role="master",
         include_cluster_labels=True,
         include_full_provider_spec=True,
-        user_data_name="master-user-data-managed",
+        user_data_name="master-user-data-managed"
     )
-    machine_data["spec"]["lifecycleHooks"] = {
-        "preDrain": [{"name": "EtcdQuorumOperator", "owner": "clusteroperator/etcd"}]
-    }
-    machine_data["spec"]["providerSpec"]["value"]["hostSelector"] = {
-        "matchLabels": {"installer.openshift.io/role": "control-plane"}
-    }
+    machine_data["spec"]["lifecycleHooks"] = {"preDrain": [{"name": "EtcdQuorumOperator", "owner": "clusteroperator/etcd"}]}
+    machine_data["spec"]["providerSpec"]["value"]["hostSelector"] = {"matchLabels": {"installer.openshift.io/role": "control-plane"}}
     machine_data["spec"]["providerSpec"]["value"]["userData"]["namespace"] = "openshift-machine-api"
     machine_data["spec"]["taints"] = [{"effect": "NoSchedule", "key": "node-role.kubernetes.io/master"}]
     return machine_data
-
 
 @pytest.fixture
 def node_configurator() -> NodeConfigurator:
@@ -75,8 +67,6 @@ def node_configurator() -> NodeConfigurator:
             to ensure test isolation and prevent state leakage.
     """
     return NodeConfigurator()
-
-
 class TestNodeConfiguratorInit:
     """Test NodeConfigurator initialization.
 
@@ -102,14 +92,18 @@ class TestUpdateNmstateIP:
     @patch("builtins.open", new_callable=mock_open)
     @patch("yaml.safe_load")
     @patch("yaml.dump")
-    def test_update_nmstate_ip_success(self, mock_yaml_dump, mock_yaml_load, mock_file, node_configurator):
+    def test_update_nmstate_ip_success(
+        self, mock_yaml_dump, mock_yaml_load, mock_file, node_configurator
+    ):
         """Test successful IP address update in nmstate file"""
         nmstate_file_path = "/tmp/test_nmstate"
         new_ip_address = "192.168.1.200"
 
         # Minimal nmstate data - only what the method actually needs
         nmstate_data = {
-            "interfaces": [{"name": "eno1", "ipv4": {"enabled": True, "address": [{"ip": "192.168.1.100"}]}}]
+            "interfaces": [
+                {"name": "eno1", "ipv4": {"enabled": True, "address": [{"ip": "192.168.1.100"}]}}
+            ]
         }
         mock_yaml_load.return_value = nmstate_data
 
@@ -126,7 +120,6 @@ class TestUpdateNmstateIP:
         # Verify the IP was updated in the data structure
         updated_data = mock_yaml_dump.call_args[0][0]
         assert updated_data["interfaces"][0]["ipv4"]["address"][0]["ip"] == new_ip_address
-
     @patch("builtins.open", new_callable=mock_open)
     @patch("yaml.safe_load")
     def test_update_nmstate_ip_no_interfaces(self, mock_yaml_load, mock_file, node_configurator):
@@ -138,7 +131,6 @@ class TestUpdateNmstateIP:
         mock_yaml_load.return_value = nmstate_data
 
         node_configurator.update_nmstate_ip(nmstate_file_path, "192.168.1.200")
-
     @patch("builtins.open", new_callable=mock_open)
     @patch("yaml.safe_load")
     def test_update_nmstate_ip_no_ipv4_addresses(self, mock_yaml_load, mock_file, node_configurator):
@@ -150,7 +142,6 @@ class TestUpdateNmstateIP:
         mock_yaml_load.return_value = nmstate_data
 
         node_configurator.update_nmstate_ip(nmstate_file_path, "192.168.1.200")
-
     @patch("builtins.open", side_effect=IOError("File not found"))
     def test_update_nmstate_ip_file_error(self, mock_file, node_configurator):
         """Test nmstate update when file operations fail"""
@@ -177,7 +168,7 @@ class TestUpdateNetworkSecret:
         network_secret_data = secret_factory(
             secret_name="ocp-control1.two.ocp4.example.com-network-config-secret",
             namespace="openshift-machine-api",
-            string_data={"nmstate": "interfaces:\n- name: eno1\n  type: ethernet"},
+            string_data={"nmstate": "interfaces:\n- name: eno1\n  type: ethernet"}
         )
         # Mock file reading
         mock_file.return_value.read.return_value = "test nmstate data"
@@ -215,7 +206,7 @@ class TestUpdateNetworkSecret:
         network_secret_data = secret_factory(
             secret_name="ocp-control1.two.ocp4.example.com-network-config-secret",
             namespace="openshift-machine-api",
-            string_data={"nmstate": "interfaces:\n- name: eno1\n  type: ethernet"},
+            string_data={"nmstate": "interfaces:\n- name: eno1\n  type: ethernet"}
         )
         # Mock empty file reading
         mock_file.return_value.read.return_value = ""
@@ -247,7 +238,10 @@ class TestUpdateBmcSecretName:
         bmc_secret_data = secret_factory(
             secret_name="ocp-control1.two.ocp4.example.com-bmc-secret",
             namespace="openshift-machine-api",
-            string_data={"username": "test-userer", "password": "test-password"},
+            string_data={
+                "username": "test-userer",
+                "password": "test-password"
+            }
         )
         mock_yaml_load.return_value = bmc_secret_data
 
@@ -311,7 +305,6 @@ class TestUpdateBMH:
 
         # Check userData for master
         assert updated_data["spec"]["userData"]["name"] == "master-user-data-managed"
-
     @patch("builtins.open", new_callable=mock_open)
     @patch("yaml.safe_load")
     @patch("yaml.dump")
@@ -340,7 +333,6 @@ class TestUpdateBMH:
 
         # Check userData for worker
         assert updated_data["spec"]["userData"]["name"] == "worker-user-data-managed"
-
     @patch("builtins.open", new_callable=mock_open)
     @patch("yaml.safe_load")
     @patch("yaml.dump")
@@ -369,7 +361,7 @@ class TestUpdateBMH:
 
     @patch("builtins.open", new_callable=mock_open)
     @patch("yaml.safe_load")
-    def test_update_bmh_systems_pattern_not_found(self, mock_yaml_load, mock_file, node_configurator):
+    def test_update_bmh_systems_pattern_not_found(self, mock_yaml_load, mock_file , node_configurator):
         """Test BMH update when Systems/ pattern not found in BMC address"""
         bmh_file_path = "/tmp/bmh.yaml"
         replacement_node_bmc_ip = "192.168.94.203"
@@ -394,9 +386,8 @@ class TestUpdateBMH:
         node_configurator.update_bmh(
             bmh_file_path, replacement_node_bmc_ip, replacement_node_mac_address, replacement_node, sushy_uid, None
         )
-
     @patch("builtins.open", side_effect=IOError("Permission denied"))
-    def test_update_bmh_file_error(self, mock_file, node_configurator):
+    def test_update_bmh_file_error(self, mock_file , node_configurator):
         """Test BMH update when file operations fail"""
         bmh_file_path = "/tmp/readonly.yaml"
 
@@ -405,7 +396,9 @@ class TestUpdateBMH:
     @patch("builtins.open", new_callable=mock_open)
     @patch("yaml.safe_load")
     @patch("yaml.dump")
-    def test_update_bmh_missing_metadata_labels(self, mock_yaml_dump, mock_yaml_load, mock_file, node_configurator):
+    def test_update_bmh_missing_metadata_labels(
+        self, mock_yaml_dump, mock_yaml_load, mock_file , node_configurator
+    ):
         """Test BMH update when metadata or labels sections are missing"""
         bmh_file_path = "/tmp/bmh.yaml"
         replacement_node = "new-control7"
@@ -448,7 +441,7 @@ class TestUpdateMachineYAML:
     @patch("yaml.safe_load")
     @patch("yaml.dump")
     def test_update_machine_yaml_master_success(
-        self, mock_yaml_dump, mock_yaml_load, mock_file, node_configurator, standard_machine_data
+        self, mock_yaml_dump, mock_yaml_load, mock_file , node_configurator, standard_machine_data
     ):
         """Test successful machine YAML update for master node"""
         machine_file_path = "/tmp/machine.yaml"
@@ -456,7 +449,9 @@ class TestUpdateMachineYAML:
 
         mock_yaml_load.return_value = standard_machine_data
 
-        node_configurator.update_machine_yaml(machine_file_path, replacement_node, "master")
+        node_configurator.update_machine_yaml(
+            machine_file_path, replacement_node, "master"
+        )
 
         # Verify YAML operations
         mock_yaml_load.assert_called_once()
@@ -475,12 +470,11 @@ class TestUpdateMachineYAML:
 
         # Check userData
         assert updated_data["spec"]["providerSpec"]["value"]["userData"]["name"] == "master-user-data-managed"
-
     @patch("builtins.open", new_callable=mock_open)
     @patch("yaml.safe_load")
     @patch("yaml.dump")
     def test_update_machine_yaml_worker_success(
-        self, mock_yaml_dump, mock_yaml_load, mock_file, node_configurator, standard_machine_data
+        self, mock_yaml_dump, mock_yaml_load, mock_file , node_configurator, standard_machine_data
     ):
         """Test machine YAML update for worker node"""
         machine_file_path = "/tmp/machine.yaml"
@@ -488,7 +482,9 @@ class TestUpdateMachineYAML:
 
         mock_yaml_load.return_value = standard_machine_data
 
-        node_configurator.update_machine_yaml(machine_file_path, replacement_node, "worker")
+        node_configurator.update_machine_yaml(
+            machine_file_path, replacement_node, "worker"
+        )
 
         updated_data = mock_yaml_dump.call_args[0][0]
 
@@ -502,12 +498,11 @@ class TestUpdateMachineYAML:
 
         # Check userData for worker
         assert updated_data["spec"]["providerSpec"]["value"]["userData"]["name"] == "worker-user-data-managed"
-
     @patch("builtins.open", new_callable=mock_open)
     @patch("yaml.safe_load")
     @patch("yaml.dump")
     def test_update_machine_yaml_default_role(
-        self, mock_yaml_dump, mock_yaml_load, mock_file, node_configurator, standard_machine_data
+        self, mock_yaml_dump, mock_yaml_load, mock_file , node_configurator, standard_machine_data
     ):
         """Test machine YAML update with default role (master)"""
         machine_file_path = "/tmp/machine.yaml"
@@ -527,7 +522,7 @@ class TestUpdateMachineYAML:
     @patch("yaml.safe_load")
     @patch("yaml.dump")
     def test_update_machine_yaml_no_number_in_name(
-        self, mock_yaml_dump, mock_yaml_load, mock_file, node_configurator, standard_machine_data
+        self, mock_yaml_dump, mock_yaml_load, mock_file , node_configurator, standard_machine_data
     ):
         """Test machine YAML update when replacement node name has no number"""
         replacement_node = "new-control-node"
@@ -540,12 +535,11 @@ class TestUpdateMachineYAML:
 
         # Should use '0' as fallback
         assert updated_data["metadata"]["name"] == "two-xkb99-master-0"
-
     @patch("builtins.open", new_callable=mock_open)
     @patch("yaml.safe_load")
     @patch("yaml.dump")
     def test_update_machine_yaml_fqdn_node_name(
-        self, mock_yaml_dump, mock_yaml_load, mock_file, node_configurator, standard_machine_data
+        self, mock_yaml_dump, mock_yaml_load, mock_file , node_configurator, standard_machine_data
     ):
         """Test machine YAML update with FQDN replacement node name"""
         machine_file_path = "/tmp/machine.yaml"
@@ -559,12 +553,11 @@ class TestUpdateMachineYAML:
 
         # Should extract number from FQDN
         assert updated_data["metadata"]["name"] == "two-xkb99-master-7"
-
     @patch("builtins.open", new_callable=mock_open)
     @patch("yaml.safe_load")
     @patch("yaml.dump")
     def test_update_machine_yaml_infrastructure_role(
-        self, mock_yaml_dump, mock_yaml_load, mock_file, node_configurator, standard_machine_data
+        self, mock_yaml_dump, mock_yaml_load, mock_file , node_configurator, standard_machine_data
     ):
         """Test machine YAML update with infrastructure role"""
         machine_file_path = "/tmp/machine.yaml"
@@ -572,7 +565,9 @@ class TestUpdateMachineYAML:
 
         mock_yaml_load.return_value = standard_machine_data
 
-        node_configurator.update_machine_yaml(machine_file_path, replacement_node, "infrastructure")
+        node_configurator.update_machine_yaml(
+            machine_file_path, replacement_node, "infrastructure"
+        )
 
         updated_data = mock_yaml_dump.call_args[0][0]
 
@@ -580,12 +575,11 @@ class TestUpdateMachineYAML:
         assert updated_data["metadata"]["labels"]["machine.openshift.io/cluster-api-machine-role"] == "infrastructure"
         assert "lifecycleHooks" not in updated_data["spec"]
         assert updated_data["spec"]["providerSpec"]["value"]["userData"]["name"] == "worker-user-data-managed"
-
     @patch("builtins.open", new_callable=mock_open)
     @patch("yaml.safe_load")
     @patch("yaml.dump")
     def test_update_machine_yaml_missing_lifecycle_hooks(
-        self, mock_yaml_dump, mock_yaml_load, mock_file, node_configurator
+        self, mock_yaml_dump, mock_yaml_load, mock_file , node_configurator
     ):
         """Test machine YAML update when lifecycle hooks are missing for master"""
         machine_file_path = "/tmp/machine.yaml"
@@ -614,9 +608,8 @@ class TestUpdateMachineYAML:
         # Should add lifecycle hooks for master
         assert "lifecycleHooks" in updated_data["spec"]
         assert updated_data["spec"]["lifecycleHooks"]["preDrain"][0]["name"] == "EtcdQuorumOperator"
-
     @patch("builtins.open", side_effect=IOError("Read error"))
-    def test_update_machine_yaml_file_error(self, mock_file, node_configurator):
+    def test_update_machine_yaml_file_error(self, mock_file , node_configurator):
         """Test machine YAML update when file operations fail"""
         machine_file_path = "/tmp/nonexistent.yaml"
         replacement_node = "test-node"
@@ -628,7 +621,7 @@ class TestNodeConfiguratorIntegration:
     """Integration tests combining multiple NodeConfigurator methods"""
 
     def test_complete_node_configuration_workflow(
-        self, node_configurator, nmstate_factory, secret_factory, bmh_factory, machine_factory
+        self , node_configurator, nmstate_factory, secret_factory, bmh_factory, machine_factory
     ):
         """Test complete workflow of configuring a replacement node"""
         replacement_node = "new-control4"
@@ -646,21 +639,30 @@ class TestNodeConfiguratorIntegration:
             machine_file = f"{temp_dir}/machine.yaml"
 
             # Generate test data using factory patterns
-            nmstate_data = nmstate_factory(interface_name="eno1", ip_address="192.168.1.100", prefix_length=24)
-
+            nmstate_data = nmstate_factory(
+                interface_name="eno1",
+                ip_address="192.168.1.100",
+                prefix_length=24
+            )
+            
             # Write test data to files
             with open(nmstate_file, "w") as f:
                 yaml.dump(nmstate_data, f)
 
             network_secret_data = secret_factory(
-                secret_name="old-network-secret", namespace="openshift-machine-api", string_data={"nmstate": "old-data"}
+                secret_name="old-network-secret",
+                namespace="openshift-machine-api",
+                string_data={"nmstate": "old-data"}
             )
-
+            
             with open(network_secret_file, "w") as f:
                 yaml.dump(network_secret_data, f)
 
-            bmc_secret_data = secret_factory(secret_name="old-bmc-secret", namespace="openshift-machine-api")
-
+            bmc_secret_data = secret_factory(
+                secret_name="old-bmc-secret",
+                namespace="openshift-machine-api"
+            )
+            
             with open(bmc_secret_file, "w") as f:
                 yaml.dump(bmc_secret_data, f)
 
@@ -671,9 +673,9 @@ class TestNodeConfiguratorIntegration:
                 bmc_credentials_name="old-bmc-secret",
                 network_config_name="old-network-secret",
                 user_data_name="master-user-data-managed",
-                labels={},
+                labels={}
             )
-
+            
             with open(bmh_file, "w") as f:
                 yaml.dump(bmh_data, f)
 
@@ -682,9 +684,9 @@ class TestNodeConfiguratorIntegration:
                 cluster_name="cluster-abc",
                 machine_role="master",
                 include_cluster_labels=True,
-                user_data_name="master-user-data-managed",
+                user_data_name="master-user-data-managed"
             )
-
+            
             with open(machine_file, "w") as f:
                 yaml.dump(machine_data, f)
 
@@ -719,7 +721,6 @@ class TestNodeConfiguratorIntegration:
             with open(machine_file, "r") as f:
                 machine_data = yaml.safe_load(f)
                 assert machine_data["metadata"]["name"] == "cluster-abc-master-4"
-
 
 if __name__ == "__main__":
     pytest.main(

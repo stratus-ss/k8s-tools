@@ -347,3 +347,22 @@ class TestBMHStateTransitions:
 
         # Verify final state
         assert resource_monitor.bmh_provisioned is True
+
+    def test_case_sensitivity_of_bmh_states(self, resource_monitor):
+        """
+        Test that BMH state comparison is case-sensitive.
+
+        This ensures exact matching of BMH states as returned by OpenShift API.
+        """
+        # Test uppercase 'PROVISIONED' - should NOT match
+        uppercase_data = {"status": {"provisioning": {"state": "PROVISIONED"}}}
+        resource_monitor.execute_oc_command.return_value = uppercase_data
+        resource_monitor._monitor_bmh_status()
+
+        # Should NOT be considered provisioned (case sensitive)
+        assert resource_monitor.bmh_provisioned is False
+
+        # Should show generic message for unknown state
+        resource_monitor.printer.print_info.assert_called_with(
+            "BMH transition-test-bmh status: PROVISIONED, continuing to monitor..."
+        )
