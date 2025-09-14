@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
 Shared pytest configuration and fixtures for all tests.
+
+🤖 AI Attribution: Test fixtures and configuration generated using Cursor.ai with human-in-the-loop review and validation.
+Development Process: AI-generated code → Human review → Refinement → Integration
 """
 
 import pytest

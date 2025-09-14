@@ -7,6 +7,9 @@ This module provides comprehensive test coverage for the BackupManager class,
 validating backup and restore operations for OpenShift node replacement scenarios.
 All tests follow enterprise-grade patterns with proper type annotations,
 comprehensive error handling, and realistic test data.
+
+🤖 AI Attribution: Test suite generated using Cursor.ai with human-in-the-loop review and validation.
+Development Process: AI-generated code → Human review → Refinement → Integration
 """
 
 import pytest

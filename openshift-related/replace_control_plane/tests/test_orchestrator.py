@@ -2,6 +2,9 @@
 """
 Comprehensive pytest tests for orchestrator module.
 Tests all functionality of NodeOperationOrchestrator class with realistic OpenShift data.
+
+🤖 AI Attribution: Test suite generated using Cursor.ai with human-in-the-loop review and validation.
+Development Process: AI-generated code → Human review → Refinement → Integration
 """
 
 import pytest
